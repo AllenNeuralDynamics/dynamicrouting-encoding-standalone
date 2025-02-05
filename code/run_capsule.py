@@ -45,7 +45,6 @@ def parse_args() -> argparse.Namespace:
 
     
     parser.add_argument('--session_id', type=str, default=None)
-    parser.add_argument('--features_to_drop', type = list, default = None)
     parser.add_argument('--logging_level', type=str, default='INFO')
     parser.add_argument('--test', type=int, default=0)
     parser.add_argument('--update_packages_from_source', type=int, default=1)
@@ -100,7 +99,7 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
     
     if test:
         logger.info("TEST | Using reduced params set")
-        unit_counts_per_areas = session.units['structure'].value_counts()
+        unit_counts_per_areas = session.units[:]['structure'].value_counts()
         filtered_structures = unit_counts_per_areas[(unit_counts_per_areas >= 50) & (~unit_counts_per_areas.index.str.islower())]
         params.areas_to_include = filtered_structures.index[0] if not filtered_structures.empty else None
         params.areas_to_include = structure_counts[structure_counts >= 100].index[0]
@@ -118,14 +117,14 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
 
     # fullmodel params to define all input variables 
     io_params = io_utils.RunParams(session_id=session_id)
-    io_params.update_multiple_metrics({key:value for key, value in params.items()})   
+    io_params.update_multiple_metrics(dataclasses.asdict(params))   
     io_params.validate_params()
-    run_params = params.get_params()
+    run_params = io_params.get_params()
 
-    units_table, behavior_info, _ = io_utils.get_session_data(session)
+    units_table, behavior_info = io_utils.get_session_data(session)
     
     # dropout models
-    features_to_drop = args.features_to_drop or (
+    features_to_drop = params.features_to_drop or (
         list(run_params['input_variables'].keys()) +  
         [value[key]['function_call'] for key, value in run_params['input_variables'].items()]
     )
@@ -139,7 +138,7 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
     for feature in ['fullmodel'] + features_to_drop:
         # pipeline will execute different behavior for files in different subfolders:
         io_params = io_utils.RunParams(session_id=session_id)
-        io_params.update_multiple_metrics({key:value for key, value in params.items()})   
+        io_params.update_multiple_metrics(dataclasses.asdict(params))   
 
         subfolder = 'full' if feature == 'fullmodel' else 'reduced'
 
@@ -189,9 +188,10 @@ class Params:
     session_id: str 
     time_of_interest: str = 'quiescent'
     spontaneous_duration: float = 2 * 60 # in seconds
-    input_variables: list = None
+    features_to_drop: list | None = None
+    input_variables: list | None = None
     input_offsets: bool = True
-    input_window_lengths: dict = None
+    input_window_lengths: dict | None = None
     drop_variables: list = None
     unit_inclusion_criteria: dict[str, float] = dataclasses.field(default_factory=lambda: {'isi_violations': 0.1, 
                                                                                             'presence_ratio': 0.99, 
