@@ -116,17 +116,17 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
 
 
     # fullmodel params to define all input variables 
-    io_params = io_utils.RunParams(session_id=session_id)
-    io_params.update_multiple_metrics(dataclasses.asdict(params))   
-    io_params.validate_params()
-    run_params = io_params.get_params()
+    temp_params = io_utils.RunParams(session_id=session_id)
+    temp_params.update_multiple_metrics(dataclasses.asdict(params))   
+    temp_params.validate_params()
+    temp_run_params = temp_params.get_params()
 
     units_table, behavior_info = io_utils.get_session_data(session)
     
     # dropout models
     features_to_drop = params.features_to_drop or (
-        list(run_params['input_variables'].keys()) +  
-        [value[key]['function_call'] for key, value in run_params['input_variables'].items()]
+        list(temp_run_params['input_variables'].keys()) +  
+        [value[key]['function_call'] for key, value in temp_run_params['input_variables'].items()]
     )
     # Remove duplicates
     features_to_drop = list(set(features_to_drop))
