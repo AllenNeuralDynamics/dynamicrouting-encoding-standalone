@@ -98,7 +98,7 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
         unit_counts_per_areas = session.units[:]['structure'].value_counts()
         filtered_structures = unit_counts_per_areas[(unit_counts_per_areas >= 50) & (~unit_counts_per_areas.index.str.islower())]
         params.areas_to_include = list(filtered_structures.index[0]) if not filtered_structures.empty else None
-        params.time_of_interest = 'quiescent'
+        params.time_of_interest = 'trial'
         params.spike_bin_width = 0.5
         params.run_on_qc_units = True
 
