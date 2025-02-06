@@ -162,7 +162,8 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
 
 
         # Save results
-        output_path = output_dirs[subfolder] / f'{session_id}_{feature}_inputs.npz'
+        model_name = run_params["model_label"]
+        output_path = output_dirs[subfolder] / f'{session_id}_{model_name}_inputs.npz'
         logger.info(f"Writing {output_path}")
         np.savez(
             file=output_path,
