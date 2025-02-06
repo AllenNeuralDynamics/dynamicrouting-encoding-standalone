@@ -155,19 +155,18 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
     
         # pipeline will execute different behavior for files in different subfolders:
         
-        # Create deep copies of run_params, fit, and design_matrix
-        run_params_reduced = copy.deepcopy(run_params)
-        fit_reduced = copy.deepcopy(fit)
+        # Create deep copy of design_matrix
         design_matrix_reduced = design_matrix.copy()
 
         logger.info(f'Building reduced model for {feature}')
         subfolder = 'reduced' 
         if feature not in fit['failed_kernels']:
-            # Modify the copies
-            run_params_reduced["drop_variables"] = [feature]
-            run_params_reduced["model_label"] = f'drop_{feature}'
-            run_params_reduced["input_variables"].remove(feature)
-            run_params_reduced["kernels"].pop(feature)
+            # Make run params
+            io_params_reduced = io_utils.RunParams(session_id=session_id)
+            io_params_reduced.update_multiple_metrics(dataclasses.asdict(params))   
+            io_params_reduced.update_multiple_metrics({"drop_variables": [features], "model_label":f'drop_{feature}'})
+            io_params_reduced.validate_params()
+            run_params_reduced = io_params_reduced.get_params()
 
             # Filter design matrix 
             filtered_weights = [weight for weight in design_matrix_reduced.weights.values if feature not in weight]
@@ -186,7 +185,7 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
             design_matrix = {'data': design_mat_reduced.data,
                             'weight_labels': design_mat_reduced.weights,
                             'timestamps': design_mat_reduced.timestamps}, 
-            fit=fit_fit_reduced,  # Ensure dict can be saved properly
+            fit=fit,  # Ensure dict can be saved properly
             run_params=run_params_reduced,  # Ensure dict can be saved properly
         )
 
