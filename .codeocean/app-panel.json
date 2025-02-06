@@ -11,6 +11,15 @@
 			"value_type": "string"
 		},
 		{
+			"id": "cCInx2g3wzhfgsI7",
+			"name": "features_to_drop",
+			"param_name": "features_to_drop",
+			"description": "Features on which to run drop out analysis supplied as a list",
+			"type": "text",
+			"value_type": "string",
+			"default_value": "None"
+		},
+		{
 			"id": "CLnGBLMVID8fEr6d",
 			"name": "session_table_query",
 			"param_name": "session_table_query",
