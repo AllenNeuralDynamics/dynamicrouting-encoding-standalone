@@ -152,16 +152,16 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
     features_to_drop = list(set(features_to_drop))
     for feature in features_to_drop:
         # pipeline will execute different behavior for files in different subfolders:
-        run_parms_reduced = run_params
-        fit_reduced = fit
-        design_matrix_reduced = design_mat
+        run_parms_reduced = run_params.copy()
+        fit_reduced = fit.copy()
+        design_matrix_reduced = design_mat.copy()
 
         logger.info(f'Building reduced model for {feature}')
         subfolder = 'reduced' 
         if feature not in fit['failed_kernels']:
             run_parmas_reduced["drop_variables"] = [feature]
             run_params_reduced["model_label"] = f'drop_{feature}'
-            run_params_reduced["input_variables"] = run_params["input_variables"].remove(feature)
+            run_params_reduced["input_variables"].remove(feature)
             run_params_reduced["kernels"].pop(feature)
 
             filtered_weights = [weight for weight in design_mat.weights.values if 'ears' not in weight]
