@@ -169,7 +169,7 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
             run_params_reduced = io_params_reduced.get_params()
 
             # Filter design matrix 
-            filtered_weights = [weight for weight in design_matrix_reduced.weights.values if feature not in weight]
+            filtered_weights = [weight for weight in design_matrix_reduced.weights.values if feature in run_params_reduced["kernels"].keys()]            
             design_matrix_reduced = design_matrix_reduced.sel(weights=filtered_weights)
         else:
             logger.warning(f"Failed kernel {feature}, skipping dropout analyses.")
