@@ -299,3 +299,10 @@ def main():
     
 if __name__ == "__main__":
     main()
+
+
+## TO DO - app panel
+# 1. Add features to drop
+# 2. Add skip_existing
+# 3. Add run_id
+# 4. Add file path 
