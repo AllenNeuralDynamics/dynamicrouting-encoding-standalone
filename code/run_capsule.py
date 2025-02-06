@@ -114,14 +114,14 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
     #   /results/<sessionId>.suffix
 
 
+    units_table, behavior_info = io_utils.get_session_data(session)
+
     # fullmodel params to define all input variables 
     temp_params = io_utils.RunParams(session_id=session_id)
     temp_params.update_multiple_metrics(dataclasses.asdict(params))   
     temp_params.validate_params()
     temp_run_params = temp_params.get_params()
 
-    units_table, behavior_info = io_utils.get_session_data(session)
-    
     # dropout models
     features_to_drop = params.features_to_drop or (
         list(temp_run_params['input_variables'].keys()) +  
