@@ -109,70 +109,80 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
     # occur and the pipeline will fail, so use session_id as filename prefix:
     #   /results/<sessionId>.suffix
 
-
-    # fullmodel params to define features to drop
-    temp_params = io_utils.RunParams(session_id=session_id)
-    temp_params.update_multiple_metrics(dataclasses.asdict(params))   
-    temp_params.validate_params()
-    temp_run_params = temp_params.get_params()
-    
-    # dropout models
-    features_to_drop = params.features_to_drop or (
-        list(temp_run_params['input_variables']) +  
-        [temp_run_params['kernels'][key]['function_call'] for key in temp_run_params['input_variables']]
-    )
-    # Remove duplicates
-    features_to_drop = list(set(features_to_drop))
-
+    # Make output directories
     output_dirs = {'full': pathlib.Path(f'/results/full'), 'reduced': pathlib.Path(f'/results/reduced')}
     for path in output_dirs.values():
         path.mkdir(parents=True, exist_ok=True)
 
-    # get session information
-    units_table, behavior_info = io_utils.get_session_data(session)
 
-    for feature in ['fullmodel'] + features_to_drop:
+    # fullmodel 
+    logger.info(f'Building fullmodel')
+    subfolder = 'full'
+    io_params = io_utils.RunParams(session_id=session_id)
+    io_params.update_multiple_metrics(dataclasses.asdict(params))   
+    io_params.update_metric("model_label", "fullmodel")
+    io_params.validate_params()
+    run_params = io_params.get_params()
+    units_table, behavior_info = io_utils.get_session_data(session)
+    fit = io_utils.extract_unit_data(run_params, units_table, behavior_info)
+    design = io_utils.DesignMatrix(fit)
+    design, fit = io_utils.add_kernels(design, run_params, session, fit, behavior_info)
+    design_mat = design.get_X()
+    fit['is_good_behavior'] = behavior_info['is_good_behavior']
+    fit['dprime'] = behavior_info['dprime']
+
+    # Save results
+    model_name = run_params["model_label"]
+    output_path = output_dirs[subfolder] / f'{session_id}_{model_name}_inputs.npz'
+    logger.info(f"Writing {output_path}")
+    np.savez(
+        file=output_path,
+        design_matrix= {'data' = design_mat.data,
+                        'weight_labels' = design_mat.weights.values,
+                        'timestamps' = design_mat.timestamps.values}, 
+        fit=fit,  # Ensure dict can be saved properly
+        run_params=run_params,  # Ensure dict can be saved properly
+    )
+    
+    # dropout models
+    features_to_drop = params.features_to_drop or (
+        list(run_params['input_variables']) +  
+        [run_params['kernels'][key]['function_call'] for key in run_params['input_variables']]
+    )
+    features_to_drop = list(set(features_to_drop))
+    for feature in features_to_drop:
 
         # pipeline will execute different behavior for files in different subfolders:
-        io_params = io_utils.RunParams(session_id=session_id)
-        io_params.update_multiple_metrics(dataclasses.asdict(params))   
+        run_parms_reduced = run_params
+        fit_reduced = fit
+        design_matrix_reduced = design_mat
 
-        if feature == 'fullmodel': 
-            logger.info(f'Building fullmodel')
-            subfolder = 'full'
-            io_params.update_metric("model_label", "fullmodel")
+        logger.info(f'Building reduced model for {feature}')
+        subfolder = 'reduced' 
+        if feature not in fit['failed_kernels']:
+            run_parmas_reduced["drop_variables"] = [feature]
+            run_params_reduced["model_label"] = f'drop_{feature}'
+            run_params_reduced["input_variables"] = run_params["input_variables"].remove(feature)
+            run_params_reduced["kernels"].pop(feature)
+
+            filtered_weights = [weight for weight in design_mat.weights.values if 'ears' not in weight]
+            design_mat_reduced = design_mat.sel(weights=filtered_weights)
         else:
-            logger.info(f'Building reduced model for {feature}')
-            subfolder = 'reduced' 
-            if feature not in fit['failed_kernels']:
-                io_params.update_multiple_metrics({"drop_variables": [feature], "model_label": f'drop_{feature}'})
-            else:
-                logger.warning(f"Failed kernel {feature}, skipping dropout analyses.")
-                continue 
-           
-        io_params.validate_params()
-        run_params = io_params.get_params()
-        
-        fit = io_utils.extract_unit_data(temp_run_params, units_table, behavior_info)
-        design = io_utils.DesignMatrix(fit)
-        design, fit = io_utils.add_kernels(design, run_params, session, fit, behavior_info)
-        design_mat = design.get_X()
-        fit['is_good_behavior'] = behavior_info['is_good_behavior']
-        fit['dprime'] = behavior_info['dprime']
+            logger.warning(f"Failed kernel {feature}, skipping dropout analyses.")
+            continue 
 
 
         # Save results
-        model_name = run_params["model_label"]
+        model_name = run_params_reduced["model_label"]
         output_path = output_dirs[subfolder] / f'{session_id}_{model_name}_inputs.npz'
         logger.info(f"Writing {output_path}")
-
         np.savez(
             file=output_path,
-            design_matrix= {'data' = design_mat.data,
-                            'weight_labels' = design_mat.weights,
-                            'timestamps' = design_mat.timestamps}, 
-            fit=fit,  # Ensure dict can be saved properly
-            run_params=run_params,  # Ensure dict can be saved properly
+            design_matrix = {'data' = design_mat_reduced.data,
+                            'weight_labels' = design_mat_reduced.weights,
+                            'timestamps' = design_mat_reduced.timestamps}, 
+            fit=fit_fit_reduced,  # Ensure dict can be saved properly
+            run_params=run_params_reduced,  # Ensure dict can be saved properly
         )
 
 # define run params here ------------------------------------------- #
