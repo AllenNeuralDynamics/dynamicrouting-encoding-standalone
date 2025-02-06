@@ -124,8 +124,8 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
 
     # dropout models
     features_to_drop = params.features_to_drop or (
-        list(temp_run_params['input_variables'].keys()) +  
-        [value[key]['function_call'] for key, value in temp_run_params['input_variables'].items()]
+        list(temp_run_params['kernels'].keys()) +  
+        [value[key]['function_call'] for key, value in temp_run_params['kernels'].items()]
     )
     # Remove duplicates
     features_to_drop = list(set(features_to_drop))
