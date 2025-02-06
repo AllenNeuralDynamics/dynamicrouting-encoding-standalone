@@ -177,9 +177,9 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
         logger.info(f"Writing {output_path}")
         np.savez(
             file=output_path,
-            design_matrix = {'data' = design_mat_reduced.data,
-                            'weight_labels' = design_mat_reduced.weights,
-                            'timestamps' = design_mat_reduced.timestamps}, 
+            design_matrix = {'data': design_mat_reduced.data,
+                            'weight_labels': design_mat_reduced.weights,
+                            'timestamps': design_mat_reduced.timestamps}, 
             fit=fit_fit_reduced,  # Ensure dict can be saved properly
             run_params=run_params_reduced,  # Ensure dict can be saved properly
         )
