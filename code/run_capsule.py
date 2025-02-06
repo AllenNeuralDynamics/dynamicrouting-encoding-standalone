@@ -137,9 +137,9 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
     logger.info(f"Writing {output_path}")
     np.savez(
         file=output_path,
-        design_matrix= {'data' = design_mat.data,
-                        'weight_labels' = design_mat.weights.values,
-                        'timestamps' = design_mat.timestamps.values}, 
+        design_matrix= {'data': design_mat.data,
+                        'weight_labels': design_mat.weights.values,
+                        'timestamps': design_mat.timestamps.values}, 
         fit=fit,  # Ensure dict can be saved properly
         run_params=run_params,  # Ensure dict can be saved properly
     )
@@ -151,7 +151,6 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
     )
     features_to_drop = list(set(features_to_drop))
     for feature in features_to_drop:
-
         # pipeline will execute different behavior for files in different subfolders:
         run_parms_reduced = run_params
         fit_reduced = fit
