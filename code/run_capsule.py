@@ -113,26 +113,29 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
     # occur and the pipeline will fail, so use session_id as filename prefix:
     #   /results/<sessionId>.suffix
 
-
+    # get session information
     units_table, behavior_info = io_utils.get_session_data(session)
 
-    # fullmodel params to define all input variables 
+    # fullmodel params to define features to drop
     temp_params = io_utils.RunParams(session_id=session_id)
     temp_params.update_multiple_metrics(dataclasses.asdict(params))   
     temp_params.validate_params()
     temp_run_params = temp_params.get_params()
-
+    
     # dropout models
     features_to_drop = params.features_to_drop or (
         list(temp_run_params['kernels'].keys()) +  
         [value['function_call'] for key, value in temp_run_params['kernels'].items()]
     )
+
     # Remove duplicates
     features_to_drop = list(set(features_to_drop))
 
     output_dirs = {'full': pathlib.Path(f'/results/full'), 'reduced': pathlib.Path(f'/results/reduced')}
     for path in output_dirs.values():
         path.mkdir(parents=True, exist_ok=True)
+
+    logger.info(features_to_drop)
 
     for feature in ['fullmodel'] + features_to_drop:
         # pipeline will execute different behavior for files in different subfolders:
