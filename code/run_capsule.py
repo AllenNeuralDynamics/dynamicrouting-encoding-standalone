@@ -109,8 +109,6 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
     # occur and the pipeline will fail, so use session_id as filename prefix:
     #   /results/<sessionId>.suffix
 
-    # get session information
-    units_table, behavior_info = io_utils.get_session_data(session)
 
     # fullmodel params to define features to drop
     temp_params = io_utils.RunParams(session_id=session_id)
@@ -130,6 +128,9 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
     for path in output_dirs.values():
         path.mkdir(parents=True, exist_ok=True)
 
+    # get session information
+    units_table, behavior_info = io_utils.get_session_data(session)
+    fit = io_utils.extract_unit_data(temp_run_params, units_table, behavior_info)
 
     for feature in ['fullmodel'] + features_to_drop:
 
@@ -152,8 +153,6 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
            
         io_params.validate_params()
         run_params = io_params.get_params()
-
-        fit = io_utils.extract_unit_data(run_params, units_table, behavior_info)
 
         design = io_utils.DesignMatrix(fit)
         design, fit = io_utils.add_kernels(design, run_params, session, fit, behavior_info)
