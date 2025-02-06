@@ -128,7 +128,7 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
     fit = io_utils.extract_unit_data(run_params, units_table, behavior_info)
     design = io_utils.DesignMatrix(fit)
     design, fit = io_utils.add_kernels(design, run_params, session, fit, behavior_info)
-    design_mat = design.get_X()
+    design_matrix = design.get_X()
     fit['is_good_behavior'] = behavior_info['is_good_behavior']
     fit['dprime'] = behavior_info['dprime']
 
@@ -138,9 +138,9 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
     logger.info(f"Writing {output_path}")
     np.savez(
         file=output_path,
-        design_matrix= {'data': design_mat.data,
-                        'weight_labels': design_mat.weights.values,
-                        'timestamps': design_mat.timestamps.values}, 
+        design_matrix= {'data': design_matrix.data,
+                        'weight_labels': design_matrix.weights.values,
+                        'timestamps': design_matrix.timestamps.values}, 
         fit=fit,  # Ensure dict can be saved properly
         run_params=run_params,  # Ensure dict can be saved properly
     )
@@ -155,10 +155,10 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
     
         # pipeline will execute different behavior for files in different subfolders:
         
-        # Create deep copies of run_params, fit, and design_mat
+        # Create deep copies of run_params, fit, and design_matrix
         run_params_reduced = copy.deepcopy(run_params)
         fit_reduced = copy.deepcopy(fit)
-        design_matrix_reduced = design_mat.copy()
+        design_matrix_reduced = design_matrix.copy()
 
         logger.info(f'Building reduced model for {feature}')
         subfolder = 'reduced' 
@@ -170,8 +170,8 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
             run_params_reduced["kernels"].pop(feature)
 
             # Filter design matrix 
-            filtered_weights = [weight for weight in design_mat.weights.values if feature not in weight]
-            design_matrix_reduced = design_mat.sel(weights=filtered_weights)
+            filtered_weights = [weight for weight in design_matrix_reduced.weights.values if feature not in weight]
+            design_matrix_reduced = design_matrix_reduced.sel(weights=filtered_weights)
         else:
             logger.warning(f"Failed kernel {feature}, skipping dropout analyses.")
             continue 
