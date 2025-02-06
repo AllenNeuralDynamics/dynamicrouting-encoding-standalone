@@ -151,7 +151,7 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
             io_params.update_metric("model_label", "fullmodel")
 
         io_params.validate_params()
-        run_params = params.get_params()
+        run_params = io_params.get_params()
 
         fit = io_utils.extract_unit_data(run_params, units_table, behavior_info)
         design = io_utils.DesignMatrix(fit)
