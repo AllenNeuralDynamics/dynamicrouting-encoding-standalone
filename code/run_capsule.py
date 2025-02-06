@@ -153,7 +153,9 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
         io_params.validate_params()
         run_params = io_params.get_params()
 
+        logger.info(f'Total number of units to run = {len(units_table)}')
         fit = io_utils.extract_unit_data(run_params, units_table, behavior_info)
+
         design = io_utils.DesignMatrix(fit)
         design, fit = io_utils.add_kernels(design, run_params, session, fit, behavior_info)
         design_mat = design.get_X()
@@ -165,9 +167,12 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
         model_name = run_params["model_label"]
         output_path = output_dirs[subfolder] / f'{session_id}_{model_name}_inputs.npz'
         logger.info(f"Writing {output_path}")
+
         np.savez(
             file=output_path,
-            design_matrix=design_mat,  # Ensure this is compatible with np.savez
+            design_matrix=design_mat.data,
+            design_matrix_weight_labels = design_mat.weights
+            design_matrix_timestamps = design_mat.timestamps 
             fit=fit,  # Ensure dict can be saved properly
             run_params=run_params,  # Ensure dict can be saved properly
         )
