@@ -168,9 +168,9 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
 
         np.savez(
             file=output_path,
-            design_matrix=design_mat.data,
-            design_matrix_weight_labels = design_mat.weights,
-            design_matrix_timestamps = design_mat.timestamps, 
+            design_matrix= {'data' = design_mat.data,
+                            'weight_labels' = design_mat.weights,
+                            'timestamps' = design_mat.timestamps}, 
             fit=fit,  # Ensure dict can be saved properly
             run_params=run_params,  # Ensure dict can be saved properly
         )
