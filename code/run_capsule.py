@@ -122,8 +122,6 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
     temp_params.validate_params()
     temp_run_params = temp_params.get_params()
 
-    logger.info(temp_run_params['kernels'])
-
     # dropout models
     features_to_drop = params.features_to_drop or (
         list(temp_run_params['kernels'].keys()) +  
