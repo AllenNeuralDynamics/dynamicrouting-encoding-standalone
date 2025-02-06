@@ -164,7 +164,7 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
             # Make run params
             io_params_reduced = io_utils.RunParams(session_id=session_id)
             io_params_reduced.update_multiple_metrics(dataclasses.asdict(params))   
-            io_params_reduced.update_multiple_metrics({"drop_variables": [features], "model_label":f'drop_{feature}'})
+            io_params_reduced.update_multiple_metrics({"drop_variables": [feature], "model_label":f'drop_{feature}'})
             io_params_reduced.validate_params()
             run_params_reduced = io_params_reduced.get_params()
 
