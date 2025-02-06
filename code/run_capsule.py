@@ -114,6 +114,9 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
     #   /results/<sessionId>.suffix
 
 
+    logger.info(dir(session))
+
+
     units_table, behavior_info = io_utils.get_session_data(session)
 
     # fullmodel params to define all input variables 
