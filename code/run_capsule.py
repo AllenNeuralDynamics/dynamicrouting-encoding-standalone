@@ -145,7 +145,7 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
             logger.info(f'Building reduced model for {feature}')
             subfolder = 'reduced' 
             if feature not in fit['failed_kernels']:
-                io_params.update_multiple_metrics({"drop_variables": feature, "model_label": f'drop_{feature}'})
+                io_params.update_multiple_metrics({"drop_variables": [feature], "model_label": f'drop_{feature}'})
             else:
                 logger.warning(f"Failed kernel {feature}, skipping dropout analyses.")
                 continue 
