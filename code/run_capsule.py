@@ -153,7 +153,6 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
         io_params.validate_params()
         run_params = io_params.get_params()
 
-        logger.info(f'Total number of units to run = {len(units_table)}')
         fit = io_utils.extract_unit_data(run_params, units_table, behavior_info)
 
         design = io_utils.DesignMatrix(fit)
