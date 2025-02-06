@@ -24,9 +24,6 @@ import zarr
 from dynamic_routing_analysis import io_utils
 import utils
 
-
-
-
 # logging configuration -------------------------------------------- #
 # use `logger.info(msg)` instead of `print(msg)` so we get timestamps and origin of log messages
 logger = logging.getLogger(
@@ -43,7 +40,6 @@ logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR) # suppress 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
 
-    
     parser.add_argument('--session_id', type=str, default=None)
     parser.add_argument('--logging_level', type=str, default='INFO')
     parser.add_argument('--test', type=int, default=0)
@@ -124,10 +120,9 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
     
     # dropout models
     features_to_drop = params.features_to_drop or (
-        list(temp_run_params['kernels'].keys()) +  
-        [value['function_call'] for key, value in temp_run_params['kernels'].items()]
+        list(temp_run_params['input_variables']) +  
+        [temp_run_params['kernels'][key]['function_call'] for key in temp_run_params['input_variables']]
     )
-
     # Remove duplicates
     features_to_drop = list(set(features_to_drop))
 
@@ -135,24 +130,26 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
     for path in output_dirs.values():
         path.mkdir(parents=True, exist_ok=True)
 
-    logger.info(features_to_drop)
 
     for feature in ['fullmodel'] + features_to_drop:
+
         # pipeline will execute different behavior for files in different subfolders:
         io_params = io_utils.RunParams(session_id=session_id)
         io_params.update_multiple_metrics(dataclasses.asdict(params))   
 
-        subfolder = 'full' if feature == 'fullmodel' else 'reduced'
-
-        if feature != 'fullmodel':
+        if feature == 'fullmodel': 
+            logger.info(f'Building fullmodel')
+            subfolder = 'full'
+            io_params.update_metric("model_label", "fullmodel")
+        else:
+            logger.info(f'Building reduced model for {feature}')
+            subfolder = 'reduced' 
             if feature not in fit['failed_kernels']:
                 io_params.update_multiple_metrics({"drop_variables": feature, "model_label": f'drop_{feature}'})
             else:
                 logger.warning(f"Failed kernel {feature}, skipping dropout analyses.")
                 continue 
-        else:
-            io_params.update_metric("model_label", "fullmodel")
-
+           
         io_params.validate_params()
         run_params = io_params.get_params()
 
