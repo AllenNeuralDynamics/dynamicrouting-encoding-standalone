@@ -232,7 +232,7 @@ class AppParams:
 
     def write_json(self, path: str | upath.UPath = '/results/app_params.json') -> None:
         path = upath.UPath(path)
-        logger.info(f"Writing params to {path}")
+        logger.info(f"Writing app params to {path}")
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(self.to_json(indent=2))
 
