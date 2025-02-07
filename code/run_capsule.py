@@ -47,7 +47,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--update_packages_from_source', type=int, default=1)
     parser.add_argument('--session_table_query', type=str, default="is_ephys & is_task & is_annotated & is_production & project == 'DynamicRouting' & issues=='[]'")
     parser.add_argument('--override_params_json', type=str, default="{}")
-    for field in dataclasses.fields(Params):
+    for field in dataclasses.fields(AppParams):
         if field.name in [getattr(action, 'dest') for action in parser._actions]:
             # already added field above
             continue
@@ -74,8 +74,8 @@ def parse_args() -> argparse.Namespace:
 
 # processing function ---------------------------------------------- #
 # modify the body of this function, but keep the same signature
-def process_session(session_id: str, params: "Params", test: int = 0) -> None:
-    """Process a single session with parameters defined in `params` and save results + params to
+def process_session(session_id: str, app_params: "AppParams", test: int = 0) -> None:
+    """Process a single session with parameters defined in `app_params` and save results + app_params to
     /results.
     
     A test mode should be implemented to allow for quick testing of the capsule (required every time
@@ -98,12 +98,12 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
         logger.info("TEST | Using reduced params set")
         unit_counts_per_areas = session.units[:]['structure'].value_counts()
         filtered_structures = unit_counts_per_areas[(unit_counts_per_areas >= 50) & (~unit_counts_per_areas.index.str.islower())]
-        params.areas_to_include = [filtered_structures.index[0]] if not filtered_structures.empty else None
-        params.time_of_interest = 'trial'
-        params.spike_bin_width = 0.5
-        params.run_on_qc_units = True
+        app_params.areas_to_include = [filtered_structures.index[0]] if not filtered_structures.empty else None
+        app_params.time_of_interest = 'trial'
+        app_params.spike_bin_width = 0.5
+        app_params.run_on_qc_units = True
 
-    logger.info(f"Processing {session_id} with {params.to_json()}")
+    logger.info(f"Processing {session_id} with {app_params.to_json()}")
 
     # Save data to files in /results
     # If the same name is used across parallel runs of this capsule in a pipeline, a name clash will
@@ -120,7 +120,7 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
     logger.info(f'Building fullmodel')
     subfolder = 'full'
     io_params = io_utils.RunParams(session_id=session_id)
-    io_params.update_multiple_metrics(dataclasses.asdict(params))   
+    io_params.update_multiple_metrics(dataclasses.asdict(app_params))   
     io_params.update_metric("model_label", "fullmodel")
     io_params.validate_params()
     run_params = io_params.get_params()
@@ -146,7 +146,7 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
     )
     
     # dropout models
-    features_to_drop = params.features_to_drop or (
+    features_to_drop = app_params.features_to_drop or (
         list(run_params['input_variables']) +  
         [run_params['kernels'][key]['function_call'] for key in run_params['input_variables']]
     )
@@ -163,7 +163,7 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
         if feature not in fit['failed_kernels']:
             # Make run params
             io_params_reduced = io_utils.RunParams(session_id=session_id)
-            io_params_reduced.update_multiple_metrics(dataclasses.asdict(params))   
+            io_params_reduced.update_multiple_metrics(dataclasses.asdict(app_params))   
             io_params_reduced.update_multiple_metrics({"drop_variables": [feature], "model_label":f'drop_{feature}'})
             io_params_reduced.validate_params()
             run_params_reduced = io_params_reduced.get_params()
@@ -189,9 +189,9 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
             run_params=run_params_reduced,  # Ensure dict can be saved properly
         )
 
-# define run params here ------------------------------------------- #
+# define app params here ------------------------------------------- #
 
-# The `Params` class is used to store parameters for the run, for passing to the processing function.
+# The `AppParams` class is used to store parameters for the run, for passing to the processing function.
 # @property fields (like `bins` below) are computed from other parameters on-demand as required:
 # this way, we can separate the parameters dumped to json from larger arrays etc. required for
 # processing.
@@ -201,7 +201,7 @@ def process_session(session_id: str, params: "Params", test: int = 0) -> None:
 
 # this is an example from Sam's processing code, replace with your own parameters as needed:
 @dataclasses.dataclass
-class Params:
+class AppParams:
     session_id: str 
     time_of_interest: str = 'quiescent'
     spontaneous_duration: float = 2 * 60 # in seconds
@@ -230,7 +230,7 @@ class Params:
         """json string of field name: value pairs, excluding values from property getters (which may be large)"""
         return json.dumps(dataclasses.asdict(self), **dumps_kwargs)
 
-    def write_json(self, path: str | upath.UPath = '/results/params.json') -> None:
+    def write_json(self, path: str | upath.UPath = '/results/app_params.json') -> None:
         path = upath.UPath(path)
         logger.info(f"Writing params to {path}")
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -251,17 +251,17 @@ def main():
     # if any of the parameters required for processing are passed as command line arguments, we can
     # get a new params object with these values in place of the defaults:
 
-    params = {}
-    for field in dataclasses.fields(Params):
+    app_params = {}
+    for field in dataclasses.fields(AppParams):
         if (val := getattr(args, field.name, None)) is not None:
-            params[field.name] = val
+            app_params[field.name] = val
     
     override_params = json.loads(args.override_params_json)
     if override_params:
         for k, v in override_params.items():
-            if k in params:
+            if k in app_params:
                 logger.info(f"Overriding value of {k!r} from command line arg with value specified in `override_params_json`")
-            params[k] = v
+            app_params[k] = v
             
     # if session_id is passed as a command line argument, we will only process that session,
     # otherwise we process all session IDs that match filtering criteria:    
@@ -285,7 +285,7 @@ def main():
     # run processing function for each session, with test mode implemented:
     for session_id in session_ids:
         try:
-            process_session(session_id, params=Params(session_id=session_id, **params), test=args.test)
+            process_session(session_id, params=AppParams(session_id=session_id, **app_params), test=args.test)
         except Exception as e:
             logger.exception(f'{session_id} | Failed:')
         else:
