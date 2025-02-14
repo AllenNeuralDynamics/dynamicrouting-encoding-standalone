@@ -1,4 +1,4 @@
-# hash:sha256:9395ef4f7fc71586b57d0e1ea683caff10cdc045a6e4be55df1fa8d4a2b9dbf1
+# hash:sha256:275df2324e26d51e95c7e6ac59f4d68200b507eb8fbde07abca9c3926fa34066
 ARG REGISTRY_HOST
 FROM $REGISTRY_HOST/codeocean/mambaforge3:23.1.0-4-python3.10.12-ubuntu22.04
 
@@ -14,6 +14,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip3 install -U --no-cache-dir \
+    aind-data-schema-models==0.5.7 \
     code-ocean-aux-tools==1.1.3 \
     hdmf==3.14.6 \
     matplotlib==3.9.2 \
