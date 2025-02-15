@@ -139,7 +139,7 @@ def process_session(session_id: str, app_params: "AppParams", test: int = 0) -> 
     np.savez(
         file=output_path,
         design_matrix= {'data': design_matrix.data,
-                        'weight_labels': design_matrix.weights.values,
+                        'weights': design_matrix.weights.values,
                         'timestamps': design_matrix.timestamps.values}, 
         fit=fit,  # Ensure dict can be saved properly
         run_params=run_params,  # Ensure dict can be saved properly
