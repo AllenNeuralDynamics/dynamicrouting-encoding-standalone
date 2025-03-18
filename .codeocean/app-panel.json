@@ -55,7 +55,7 @@
 			"description": "A json string of parameters to pass to Params class. Keys must be fields on Params class. Overrides values specified individually in App Builder",
 			"type": "text",
 			"value_type": "string",
-			"default_value": "{}"
+			"default_value": "{\"time_of_interest\": \"full_trial\"}"
 		}
 	]
 }
