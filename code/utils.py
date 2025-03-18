@@ -153,7 +153,7 @@ def get_df(component: str) -> pl.DataFrame:
 
 @functools.cache
 def get_nwb_paths() -> tuple[pathlib.Path, ...]:
-    nwb_paths = tuple(glob.glob(get_data_root(), '*.nwb', recursive=True))
+    nwb_paths = tuple(glob.glob(f"{get_data_root()}/*.nwb', recursive=True))
     logger.info(f"Found NWB paths: {nwb_paths}")
     return nwb_paths
 
