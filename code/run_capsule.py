@@ -169,8 +169,10 @@ def process_session(session_id: str, app_params: "AppParams", test: int = 0) -> 
             run_params_reduced = io_params_reduced.get_params()
 
             # Filter design matrix 
-            filtered_weights = [weight for weight in design_matrix.weights.values if weight.split('_')[0] in run_params_reduced['kernels'].keys()]            
+            filtered_weights = [weight for weight in design_matrix.weights.values if weight.split('_')[0] in run_params_reduced['kernels'].keys()]      
+
             design_matrix_reduced = design_matrix_reduced.sel(weights=filtered_weights)
+            logger.info(f'Size of reduced model: {design_matrix_reduced.data.shape}')
         else:
             logger.warning(f"Failed kernel {feature}, skipping dropout analyses.")
             continue 
