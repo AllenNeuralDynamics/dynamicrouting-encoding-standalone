@@ -99,7 +99,7 @@ def process_session(session_id: str, app_params: "AppParams", test: int = 0) -> 
         unit_counts_per_areas = session.units[:]['structure'].value_counts()
         filtered_structures = unit_counts_per_areas[(unit_counts_per_areas >= 50) & (~unit_counts_per_areas.index.str.islower())]
         app_params.areas_to_include = [filtered_structures.index[0]] if not filtered_structures.empty else None
-        app_params.time_of_interest = 'trial'
+        app_params.time_of_interest = 'full_trial'
         app_params.spike_bin_width = 0.5
         app_params.run_on_qc_units = True
 
@@ -169,7 +169,7 @@ def process_session(session_id: str, app_params: "AppParams", test: int = 0) -> 
             run_params_reduced = io_params_reduced.get_params()
 
             # Filter design matrix 
-            filtered_weights = [weight for weight in design_matrix_reduced.weights.values if feature in run_params_reduced["kernels"].keys()]            
+            filtered_weights = [weight for weight in design_matrix.weights.values if weight.split('_')[0] in run_params_reduced['kernels'].keys()]            
             design_matrix_reduced = design_matrix_reduced.sel(weights=filtered_weights)
         else:
             logger.warning(f"Failed kernel {feature}, skipping dropout analyses.")
