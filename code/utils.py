@@ -463,10 +463,6 @@ def get_data_root(as_str: bool = False) -> pathlib.Path:
     else:
         raise FileNotFoundError(f"data dir not present at any of {expected_paths=}")
 
-@functools.cache
-def get_nwb_paths() -> tuple[pathlib.Path, ...]:
-    return tuple(get_data_root().rglob('*.nwb'))
-
 def ensure_nonempty_results_dirs(dirs: str | Iterable[str] = '/results') -> None:
     """A pipeline run can crash if a results folder is expected and not found or is empty 
     - ensure that a non-empty folder exists by creating a unique file"""
