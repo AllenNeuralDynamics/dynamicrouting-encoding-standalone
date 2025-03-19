@@ -281,10 +281,9 @@ def main():
     elif utils.is_pipeline(): 
         # only one nwb will be available 
         session_ids = set(session_ids) & set(p.stem for p in utils.get_nwb_paths())
-        assert len(session_ids) == 1, f"Expected single NWB file in pipeline mode: got {len(session_ids)}"
-        logger.info(f"Running in pipeline: using session ID for single NWB file")
-    else:
-        logger.info(f"Using list of {len(session_ids)} session_ids after filtering")
+        assert len(session_ids) <= 1, f"Expected zero or one NWB files in pipeline mode: got {len(session_ids)}"
+        
+    logger.info(f"Using list of {len(session_ids)} session_ids after filtering")
     
     # run processing function for each session, with test mode implemented:
     for session_id in session_ids:
