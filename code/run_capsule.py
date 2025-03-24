@@ -134,15 +134,19 @@ def process_session(session_id: str, app_params: "AppParams", test: int = 0) -> 
 
     # Save results
     model_name = run_params["model_label"]
-    output_path = output_dirs[subfolder] / f'{session_id}_{model_name}_inputs.npz'
+    output_path = output_dirs[subfolder] / f'{session_id}_{model_name}_inputs.pkl'
     logger.info(f"Writing {output_path}")
-    np.savez(
-        file=output_path,
-        design_matrix= {'data': design_matrix.data,
-                        'weights': design_matrix.weights.values,
-                        'timestamps': design_matrix.timestamps.values}, 
-        fit=fit,  # Ensure dict can be saved properly
-        run_params=run_params,  # Ensure dict can be saved properly
+    output_path.write_bytes(
+        pickle.dumps(
+            dict(
+                file=output_path,
+                design_matrix= {'data': design_matrix.data,
+                                'weights': design_matrix.weights.values,
+                                'timestamps': design_matrix.timestamps.values}, 
+                fit=fit,
+                run_params=run_params,
+            )
+        )
     )
     
     # dropout models
@@ -180,17 +184,21 @@ def process_session(session_id: str, app_params: "AppParams", test: int = 0) -> 
 
         # Save results
         model_name = run_params_reduced["model_label"]
-        output_path = output_dirs[subfolder] / f'{session_id}_{model_name}_inputs.npz'
+        output_path = output_dirs[subfolder] / f'{session_id}_{model_name}_inputs.pkl'
         logger.info(f"Writing {output_path}")
-        np.savez(
-            file=output_path,
-            design_matrix = {'data': design_matrix_reduced.data,
-                            'weights': design_matrix_reduced.weights.values,
-                            'timestamps': design_matrix_reduced.timestamps.values}, 
-            fit=fit,  # Ensure dict can be saved properly
-            run_params=run_params_reduced,  # Ensure dict can be saved properly
+        output_path.write_bytes(
+            pickle.dumps(
+                dict(
+                    file=output_path,
+                    design_matrix = {'data': design_matrix_reduced.data,
+                                    'weights': design_matrix_reduced.weights.values,
+                                    'timestamps': design_matrix_reduced.timestamps.values}, 
+                    fit=fit,
+                    run_params=run_params,
+                )
+            )
         )
-
+    
 # define app params here ------------------------------------------- #
 
 # The `AppParams` class is used to store parameters for the run, for passing to the processing function.
