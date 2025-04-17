@@ -3,15 +3,17 @@ from __future__ import annotations
 import datetime
 import os
 import pathlib
+import pickle
 import random
 
 import dynamic_routing_analysis
+import dynamic_routing_analysis.datacube_utils
 import pydantic
 import pydantic_settings
 import xarray
 
 os.environ["RUST_BACKTRACE"] = "1"
-# os.environ['POLARS_MAX_THREADS'] = '1'
+os.environ['POLARS_MAX_THREADS'] = '1'
 os.environ["TOKIO_WORKER_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["RAYON_NUM_THREADS"] = "1"
@@ -22,20 +24,20 @@ import logging
 import math
 import multiprocessing
 import uuid
-from typing import Iterable, Sequence
+from typing import Iterable, Literal, Sequence
 
+import lazynwb
 import numpy as np
 import polars as pl
 import polars._typing
 import tqdm
 import utils
 from dynamic_routing_analysis.decoding_utils import NotEnoughBlocksError, decoder_helper
-from dynamic_routing_analysis.glm_utils import 
-
+import dynamic_routing_analysis.io_utils as io_utils
 logger = logging.getLogger(__name__)
 
 
-class Params(pydantic_settings.BaseSettings):
+class Params(pydantic_settings.BaseSettings, extra='allow'):
     # ----------------------------------------------------------------------------------
     # Required parameters
     result_prefix: str
@@ -43,7 +45,7 @@ class Params(pydantic_settings.BaseSettings):
     # ----------------------------------------------------------------------------------
     
     # Capsule-specific parameters -------------------------------------- #
-    session_id: str | None = pydantic.Field(None, exclude=True, repr=True)
+    single_session_id_to_use: str | None = pydantic.Field(None, exclude=True, repr=True)
     """If provided, only process this session_id. Otherwise, process all sessions that match the filtering criteria"""
     run_id: str = pydantic.Field(datetime.datetime.now().strftime("%Y%m%d_%H%M%S")) # created at runtime: same for all Params instances 
     """A unique string that should be attached to all decoding runs in the same batch"""
@@ -55,9 +57,146 @@ class Params(pydantic_settings.BaseSettings):
     max_workers: int | None = pydantic.Field(None, exclude=True, repr=True)
     """For process pool"""
 
+    # Run parameters that define a unique run (ie will be checked for 'skip_existing')
+    datacube_version: str = dynamic_routing_analysis.datacube_utils.DatacubeConfig.datacube_version
+    time_of_interest: str = 'full_trial'
+    input_offsets: bool = True
+    input_window_lengths: dict[str, float] = pydantic.Field(default_factory=dict)
+    isi_violations: float = 0.5
+    presence_ratio: float = 0.7
+    amplitude_cutoff: float = 0.1
+    activity_drift: float = 0.2
+    firing_rate: float = 1.0
+    run_on_qc_units: bool = False
+    spike_bin_width: float = 0.1
+    """in seconds"""
+    areas_to_include: list[str] = pydantic.Field(default_factory=list)
+    areas_to_exclude: list[str] = pydantic.Field(default_factory=list)
+    orthogonalize_against_context: list[str] = pydantic.Field(default_factory=lambda: ['facial_features'])
+    trial_start_time: float = -2
+    trial_stop_time: float = 3
+    intercept: bool = True
+    """Whether to include an intercept in the design matrix"""
+    method: Literal['ridge_regression', 'lasso_regression','reduced_rank_regression', 'elastic_net_regression'] = 'ridge_regression'
+    no_nested_CV: bool = False
+    optimize_on: float = 0.3
+    n_outer_folds: int = 5
+    n_inner_folds: int = 5
+    optimize_penalty_by_cell: bool = False
+    optimize_penalty_by_area: bool = False
+    optimize_penalty_by_firing_rate: bool = False   
+    use_fixed_penalty: bool = False
+    num_rate_clusters: int = 5
+    
+    # RIDGE + ELASTIC NET
+    L2_grid_type: Literal['log', 'linear'] = 'log'
+    L2_grid_range: list[float] = pydantic.Field(default_factory=lambda: [1, 2**12])
+    L2_grid_num: int = 13
+    L2_fixed_lambda: float | None = None
+    
+    # LASSO
+    L1_grid_type: Literal['log', 'linear'] = 'log'
+    L1_grid_range: list[float] = pydantic.Field(default_factory=lambda: [10**-6, 10**-2])
+    L1_grid_num: int = 13
+    L1_fixed_lambda: float | None = None
+    
+    cell_regularization: float | None = None
+    cell_regularization_nested: float | None = None
+    
+    # ELASTIC NET
+    L1_ratio_grid_type: Literal['log', 'linear'] = 'log'
+    L1_ratio_grid_range: list[float] = pydantic.Field(default_factory=lambda: [10**-6, 10**-1])
+    L1_ratio_grid_num: int = 9
+    L1_ratio_fixed: float | None = None
+    cell_L1_ratio: float | None = None
+    cell_L1_ratio_nested: float | None = None
+    
+    # RRR
+    rank_grid_num: int = 10
+    rank_fixed: int | None = None
+    cell_rank: int | None = None
+    cell_rank_nested: int | None = None
+    
+    reuse_regularization_coefficients: bool = True
+    """Whether to re-use regularization coefficients"""
+    
+    linear_shift_by: float = 1
+    
+    smooth_spikes_half_gaussian: bool = False
+    half_gaussian_std_dev: float = 0.05
+    features_to_drop: list[str] | None = pydantic.Field(default=None, exclude=True)
+    """For modifying via app panel, but needs populating otherwise"""
+    
+    # Params that will be updated many times during processing (ie for each model) -------------- #
+    # project: str | None = pydantic.Field(default=None, exclude=True)
+    # drop_variables: list[str] | None = pydantic.Field(default=None, exclude=True)
+    # input_variables: list[str] | None = pydantic.Field(default=None, exclude=True)
+    # fullmodel_fitted: bool | None = pydantic.Field(default=None, exclude=True)
+    # model_label: str | None  = pydantic.Field(default=None, exclude=True)
+    
+    
+    @pydantic.computed_field(repr=False)
+    def unit_inclusion_criteria(self) -> dict[str, float]:
+        return {
+            'isi_violations': self.isi_violations,
+            'presence_ratio': self.presence_ratio,
+            'amplitude_cutoff': self.amplitude_cutoff,
+            'activity_drift': self.activity_drift,
+            'firing_rate': self.firing_rate,
+        }
+    
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls,
+        init_settings,
+        *args,
+        **kwargs,
+    ):
+        # the order of the sources below is what defines the priority:
+        # - first source is highest priority
+        # - for each field in the class, the first source that contains a value will be used
+        return (
+            init_settings,
+            pydantic_settings.sources.JsonConfigSettingsSource(settings_cls, json_file='parameters.json'),
+            pydantic_settings.CliSettingsSource(settings_cls, cli_parse_args=True),
+        )
+        
+
+# `run_params` also requires:
+'features_to_drop'
+'project'
+'drop_variables'
+'input_variables'
+'fullmodel_fitted'
+'model_label'?
+
 # ------------------------------------------------------------------ #
-def get_npz_path(session_id: str) -> pathlib.Path:
-def get_design_matrix(session_id: str) -> xarray.DataArray:
+def get_pkl_path(session_id: str) -> pathlib.Path:
+    return pathlib.Path(f'/scratch/{session_id}.pkl')
+
+def get_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]:
+    """Equivalent to reading the 'inputs.npz' file in the pipeline.
+    If it doesn't exist, it will be created.
+    """
+    if get_pkl_path(session_id).exists():
+        return pickle.loads(get_pkl_path(session_id).read_bytes())
+    else:
+        units_table, behavior_info = io_utils.get_session_data_from_datacube(session_id)
+        units_table = (
+            io_utils.setup_units_table(params.model_dump(), units_table)
+            .pipe(lazynwb.lazynwb.merge_array_column, 'spike_times')
+        )
+        fit={}
+        fit = io_utils.establish_timebins(run_params=params.model_dump(), fit=fit, behavior_info=behavior_info)
+        fit = io_utils.process_spikes(units_table=units_table, run_params=params.model_dump(), fit=fit)
+        design: io_utils.DesignMatrix = io_utils.DesignMatrix(fit)
+        design, fit = io_utils.add_kernels(design= design, run_params=params.model_dump(), session=None, fit=fit, behavior_info=behavior_info)
+        design_matrix = design.get_X()
+        pickle.dumps(data := {'fit': fit, 'design_matrix': design_matrix})
+        return data
+
+"""
 def helper_fullmodel(session_id: str, params: Params) -> None:
 def helper_dropout(session_id: str, params: Params) -> None:
 def helper_linear_shift(session_id: str, params: Params, shift: int) -> None:
@@ -70,6 +209,7 @@ for session_id in session_ids:
     for shift, blocks in shifts:
         helper_linear_shift(session_id, params, shift, blocks, shift_column)
 
+"""
 
 def run_encoding(
     session_ids: str | Iterable[str],
