@@ -11,9 +11,16 @@
 			"required": true
 		},
 		{
+			"id": "HCKkHCxdwCg0FSvu",
+			"name": "run_id",
+			"param_name": "run_id",
+			"type": "text",
+			"value_type": "string"
+		},
+		{
 			"id": "U7T2KRR0pLvyecUz",
-			"name": "session_id",
-			"param_name": "session_id",
+			"name": "single_session_id_to_use",
+			"param_name": "single_session_id_to_use",
 			"description": "Provide a single session ID \u003csubjectID\u003e_\u003cyyyy-mm-dd\u003e (default empty: run for all sessions in datacube)",
 			"type": "text",
 			"value_type": "string"

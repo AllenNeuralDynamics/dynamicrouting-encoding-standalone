@@ -32,7 +32,7 @@ import polars as pl
 import polars._typing
 import tqdm
 import utils
-import dynamic_routing_analysis.io_utils as io_utils
+from dynamic_routing_analysis import io_utils, glm_utils
 import dynamic_routing_analysis.codeocean_utils
 import upath 
 
@@ -50,7 +50,7 @@ class Params(pydantic_settings.BaseSettings, extra='allow'):
     single_session_id_to_use: str | None = pydantic.Field(None, exclude=True, repr=True)
     """If provided, only process this session_id. Otherwise, process all sessions that match the filtering criteria"""
     session_table_query: str = 'is_ephys & is_task & is_annotated & is_production & project == "DynamicRouting" & issues=="[]"'
-    run_id: str = pydantic.Field(datetime.datetime.now().strftime("%Y%m%d_%H%M%S")) # created at runtime: same for all Params instances 
+    run_id: str = pydantic.Field(datetime.datetime.now().strftime("%Y%m%d_%H%M%S")) # created once at runtime: same for all Params instances 
     """A unique string that should be attached to all decoding runs in the same batch"""
     test: bool = pydantic.Field(False, exclude=True)
     logging_level: str | int = pydantic.Field('INFO', exclude=True)
@@ -172,12 +172,12 @@ class Params(pydantic_settings.BaseSettings, extra='allow'):
 
 # `run_params` also requires:
 """
-'features_to_drop'
-'project'
-'drop_variables'
-'input_variables'
-'fullmodel_fitted'
-'model_label'?
+'features_to_drop'# needs to be added
+'project'# needs to be added
+'drop_variables'# needs to be added
+'input_variables' # will get populated in define_kernels
+'fullmodel_fitted' # needs to be added
+'model_label'?? 
 """
 
 # ------------------------------------------------------------------ #
@@ -210,13 +210,32 @@ def get_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]:
         design: io_utils.DesignMatrix = io_utils.DesignMatrix(fit)
         design, fit = io_utils.add_kernels(design= design, run_params=run_params, session=utils.get_nwb(session_id), fit=fit, behavior_info=behavior_info)
         design_matrix = design.get_X()
+        data = {'fit': fit, 'design_matrix': design_matrix, 'run_params': run_params}
         get_fullmodel_data_path(session_id).write_bytes(
-            pickle.dumps(data := {'fit': fit, 'design_matrix': design_matrix})
+            pickle.dumps(data)
         )
+        if params.test:
+            pathlib.Path(get_fullmodel_data_path(session_id).as_posix().replace('scratch', 'results')).write_bytes(
+                pickle.dumps(data)
+            )
         return data
 
-"""
+
 def helper_fullmodel(session_id: str, params: Params) -> None:
+    data = get_fullmodel_data(session_id = session_id, params = params)
+    run_params = data['run_params']
+    'project'# needs to be added
+    'drop_variables'# needs to be added
+    'input_variables' # will get populated in define_kernels
+    'fullmodel_fitted' # needs to be added
+    'model_label'?? 
+    fit = glm_utils.optimize_model(fit = data['fit'], design_mat = data['design_matrix'], run_params = run_params)
+
+
+
+
+
+"""
 def helper_dropout(session_id: str, params: Params) -> None:
 def helper_linear_shift(session_id: str, params: Params, shift: int) -> None:
     
