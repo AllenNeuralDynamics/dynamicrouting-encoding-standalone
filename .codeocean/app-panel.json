@@ -3,6 +3,14 @@
 	"named_parameters": true,
 	"parameters": [
 		{
+			"id": "bNOPteBoZrFpsxRN",
+			"name": "result_prefix",
+			"param_name": "result_prefix",
+			"type": "text",
+			"value_type": "string",
+			"required": true
+		},
+		{
 			"id": "U7T2KRR0pLvyecUz",
 			"name": "session_id",
 			"param_name": "session_id",

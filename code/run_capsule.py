@@ -2,7 +2,7 @@
 import os
 
 os.environ["RUST_BACKTRACE"] = "1"
-# os.environ['POLARS_MAX_THREADS'] = '1'
+os.environ['POLARS_MAX_THREADS'] = '1'
 os.environ["TOKIO_WORKER_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["RAYON_NUM_THREADS"] = "1"
@@ -93,9 +93,9 @@ def main():
         params.json_path.write_text(params.model_dump_json(indent=4))
 
     logger.info(f"starting encoding with {params!r}")
-    encoding_utils.run_encoding(session_ids=session_ids, params=params)
+    encoding_utils.get_fullmodel_data(session_id=session_ids[0], params=encoding_utils.Params())
 
-    utils.ensure_nonempty_results_dir()
+    utils.ensure_nonempty_results_dirs()
     logger.info(f"Time elapsed: {time.time() - t0:.2f} s")
 
 

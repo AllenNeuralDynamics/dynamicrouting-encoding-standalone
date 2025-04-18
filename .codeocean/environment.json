@@ -1,6 +1,11 @@
 {
 	"version": 1,
 	"base_image": "codeocean/mambaforge3:23.1.0-4-python3.10.12-ubuntu22.04",
+	"args": [
+		"AWS_ACCESS_KEY_ID",
+		"AWS_DEFAULT_REGION",
+		"AWS_SECRET_ACCESS_KEY"
+	],
 	"options": {
 		"registry_host_arg": true,
 		"git_ask_pass": true
@@ -27,11 +32,15 @@
 				},
 				{
 					"name": "git+https://github.com/AllenInstitute/dynamic_routing_analysis#egg=dynamic-routing-analysis",
-					"version": "b5740eb24152c30dbd75e4d96d2651dc854571a5"
+					"version": "2fcda8fbf3f58886de65ffd7d100b8a6170fa68a"
 				},
 				{
 					"name": "hdmf",
 					"version": "3.14.6"
+				},
+				{
+					"name": "pynwb",
+					"version": "3.0.0"
 				},
 				{
 					"name": "scikit-learn",

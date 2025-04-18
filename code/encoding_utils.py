@@ -32,10 +32,12 @@ import polars as pl
 import polars._typing
 import tqdm
 import utils
-from dynamic_routing_analysis.decoding_utils import NotEnoughBlocksError, decoder_helper
 import dynamic_routing_analysis.io_utils as io_utils
-logger = logging.getLogger(__name__)
+import dynamic_routing_analysis.codeocean_utils
+import upath 
 
+
+logger = logging.getLogger(__name__)
 
 class Params(pydantic_settings.BaseSettings, extra='allow'):
     # ----------------------------------------------------------------------------------
@@ -47,6 +49,7 @@ class Params(pydantic_settings.BaseSettings, extra='allow'):
     # Capsule-specific parameters -------------------------------------- #
     single_session_id_to_use: str | None = pydantic.Field(None, exclude=True, repr=True)
     """If provided, only process this session_id. Otherwise, process all sessions that match the filtering criteria"""
+    session_table_query: str = 'is_ephys & is_task & is_annotated & is_production & project == "DynamicRouting" & issues=="[]"'
     run_id: str = pydantic.Field(datetime.datetime.now().strftime("%Y%m%d_%H%M%S")) # created at runtime: same for all Params instances 
     """A unique string that should be attached to all decoding runs in the same batch"""
     test: bool = pydantic.Field(False, exclude=True)
@@ -58,7 +61,7 @@ class Params(pydantic_settings.BaseSettings, extra='allow'):
     """For process pool"""
 
     # Run parameters that define a unique run (ie will be checked for 'skip_existing')
-    datacube_version: str = dynamic_routing_analysis.datacube_utils.DatacubeConfig.datacube_version
+    datacube_version: str =  dynamic_routing_analysis.datacube_utils.get_datacube_version()
     time_of_interest: str = 'full_trial'
     input_offsets: bool = True
     input_window_lengths: dict[str, float] = pydantic.Field(default_factory=dict)
@@ -133,7 +136,11 @@ class Params(pydantic_settings.BaseSettings, extra='allow'):
     # input_variables: list[str] | None = pydantic.Field(default=None, exclude=True)
     # fullmodel_fitted: bool | None = pydantic.Field(default=None, exclude=True)
     # model_label: str | None  = pydantic.Field(default=None, exclude=True)
-    
+
+    @property
+    def json_path(self) -> upath.UPath:
+        """Path to params json on S3"""
+        return upath.UPath(f"s3://aind-scratch-data/dynamic-routing/encoding/results/{'_'.join([self.result_prefix, self.run_id])}.json")
     
     @pydantic.computed_field(repr=False)
     def unit_inclusion_criteria(self) -> dict[str, float]:
@@ -164,36 +171,48 @@ class Params(pydantic_settings.BaseSettings, extra='allow'):
         
 
 # `run_params` also requires:
+"""
 'features_to_drop'
 'project'
 'drop_variables'
 'input_variables'
 'fullmodel_fitted'
 'model_label'?
+"""
 
 # ------------------------------------------------------------------ #
-def get_pkl_path(session_id: str) -> pathlib.Path:
+def get_fullmodel_data_path(session_id: str) -> pathlib.Path:
     return pathlib.Path(f'/scratch/{session_id}.pkl')
+
+def get_regularization_coefficients_path(session_id: str) ->  pathlib.Path:
+    return pathlib.Path(f'/scratch/{session_id}.npy')
 
 def get_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]:
     """Equivalent to reading the 'inputs.npz' file in the pipeline.
     If it doesn't exist, it will be created.
     """
-    if get_pkl_path(session_id).exists():
-        return pickle.loads(get_pkl_path(session_id).read_bytes())
+    if get_fullmodel_data_path(session_id).exists():
+        data = pickle.loads(get_fullmodel_data_path(session_id).read_bytes())
+        if params.reuse_regularization_coefficients:
+            data['fit'] |= pickle.loads(get_regularization_coefficients_path(session_id).read_bytes())
+        return data
     else:
         units_table, behavior_info = io_utils.get_session_data_from_datacube(session_id)
+        print(units_table.columns)
         units_table = (
             io_utils.setup_units_table(params.model_dump(), units_table)
-            .pipe(lazynwb.lazynwb.merge_array_column, 'spike_times')
+            .pipe(lazynwb.merge_array_column, 'spike_times')
         )
+        run_params = io_utils.define_kernels(params.model_dump())
         fit={}
-        fit = io_utils.establish_timebins(run_params=params.model_dump(), fit=fit, behavior_info=behavior_info)
-        fit = io_utils.process_spikes(units_table=units_table, run_params=params.model_dump(), fit=fit)
+        fit = io_utils.establish_timebins(run_params=run_params, fit=fit, behavior_info=behavior_info)
+        fit = io_utils.process_spikes(units_table=units_table, run_params=run_params, fit=fit)
         design: io_utils.DesignMatrix = io_utils.DesignMatrix(fit)
-        design, fit = io_utils.add_kernels(design= design, run_params=params.model_dump(), session=None, fit=fit, behavior_info=behavior_info)
+        design, fit = io_utils.add_kernels(design= design, run_params=run_params, session=utils.get_nwb(session_id), fit=fit, behavior_info=behavior_info)
         design_matrix = design.get_X()
-        pickle.dumps(data := {'fit': fit, 'design_matrix': design_matrix})
+        get_fullmodel_data_path(session_id).write_bytes(
+            pickle.dumps(data := {'fit': fit, 'design_matrix': design_matrix})
+        )
         return data
 
 """
