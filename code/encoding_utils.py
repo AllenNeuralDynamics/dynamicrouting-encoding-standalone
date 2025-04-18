@@ -24,7 +24,7 @@ import logging
 import math
 import multiprocessing
 import uuid
-from typing import Iterable, Literal, Sequence
+from typing import Any, Iterable, Literal, Sequence
 
 import lazynwb
 import numpy as np
@@ -130,6 +130,9 @@ class Params(pydantic_settings.BaseSettings, extra='allow'):
     features_to_drop: list[str] | None = pydantic.Field(default=None, exclude=True)
     """For modifying via app panel, but needs populating otherwise"""
     
+    linear_shift_variables: list[str] = pydantic.Field(default_factory=lambda: ['context'])
+    """Will not work with certain feature groups (ie those with offsets)"""
+    
     # Params that will be updated many times during processing (ie for each model) -------------- #
     # project: str | None = pydantic.Field(default=None, exclude=True)
     # drop_variables: list[str] | None = pydantic.Field(default=None, exclude=True)
@@ -181,11 +184,15 @@ class Params(pydantic_settings.BaseSettings, extra='allow'):
 """
 
 # ------------------------------------------------------------------ #
-def get_fullmodel_data_path(session_id: str) -> pathlib.Path:
-    return pathlib.Path(f'/scratch/{session_id}.pkl')
 
 def get_regularization_coefficients_path(session_id: str) ->  pathlib.Path:
-    return pathlib.Path(f'/scratch/{session_id}.npy')
+    return pathlib.Path(f'/scratch/{session_id}.pkl')
+
+def get_regularization_coefficients(session_id: str) -> dict[str, Any]:
+    return pickle.loads(get_regularization_coefficients_path(session_id).read_bytes())
+
+def get_fullmodel_data_path(session_id: str) -> pathlib.Path:
+    return pathlib.Path(f'/scratch/{session_id}.pkl')
 
 def get_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]:
     """Equivalent to reading the 'inputs.npz' file in the pipeline.
@@ -204,7 +211,8 @@ def get_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]:
             .pipe(lazynwb.merge_array_column, 'spike_times')
         )
         run_params = io_utils.define_kernels(params.model_dump())
-        fit={}
+        run_params['project'] = get_project(session_id)
+        fit: dict[str, Any] = {}
         fit = io_utils.establish_timebins(run_params=run_params, fit=fit, behavior_info=behavior_info)
         fit = io_utils.process_spikes(units_table=units_table, run_params=run_params, fit=fit)
         design: io_utils.DesignMatrix = io_utils.DesignMatrix(fit)
@@ -220,34 +228,82 @@ def get_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]:
             )
         return data
 
-
+def get_project(session_id: str) -> str:
+    return utils.get_session_table().filter(pl.col('session_id') == session_id)['project'][0]
+    
 def helper_fullmodel(session_id: str, params: Params) -> None:
     data = get_fullmodel_data(session_id = session_id, params = params)
     run_params = data['run_params']
-    'project'# needs to be added
-    'drop_variables'# needs to be added
-    'input_variables' # will get populated in define_kernels
-    'fullmodel_fitted' # needs to be added
-    'model_label'?? 
+    run_params | {
+        'fullmodel_fitted': False,
+        'model_label': 'fullmodel',
+    }
     fit = glm_utils.optimize_model(fit = data['fit'], design_mat = data['design_matrix'], run_params = run_params)
+    fit = glm_utils.evaluate_model(fit = fit, design_mat = data['design_matrix'], run_params = run_params)
+    regularization_coef_dict = {}
+    for prefix in  ['cell_regularization', 'cell_L1_ratio', 'cell_rank']:
+        for suffix in ['', '_nested']:
+            key = f'{prefix}{suffix}'
+            regularization_coef_dict[key] = fit[key]
+    get_regularization_coefficients_path(session_id).write_bytes(
+        pickle.dumps(regularization_coef_dict)
+    )
+    save_results(fit, run_params)
 
-
-
-
-
-"""
-def helper_dropout(session_id: str, params: Params) -> None:
-def helper_linear_shift(session_id: str, params: Params, shift: int) -> None:
+def get_features_to_drop(session_id: str, params: Params) -> list[str]:
+    if params.features_to_drop:
+        return params.features_to_drop
     
-for session_id in session_ids:
-    helper_fullmodel(session_id, params)
-    helper_dropout(session_id, params, session_id)
-    shifts: list[int] = get_linear_shifts(session_id, params)
-    shift_column: int = get_shift_column(design_matrix, params)
-    for shift, blocks in shifts:
-        helper_linear_shift(session_id, params, shift, blocks, shift_column)
+    run_params = get_fullmodel_data(session_id = session_id, params=params)['run_params']
+    features_to_drop = (
+        list(run_params['input_variables']) +  
+        [run_params['kernels'][key]['function_call'] for key in run_params['input_variables']]
+    )
+    return features_to_drop
+    
 
-"""
+def helper_dropout(session_id: str, params: Params, feature_to_drop: str) -> None:
+    data = get_fullmodel_data(session_id = session_id, params = params)
+    run_params = data['run_params']
+    run_params | {
+        'drop_variables': [feature_to_drop],
+        'fullmodel_fitted': params.reuse_regularization_coefficients,
+        'model_label': f'drop_{feature_to_drop}',
+    }
+    fit = glm_utils.dropout(fit=data['fit'] | get_regularization_coefficients(session_id), design_mat=data['design_matrix'], run_params=run_params)
+    save_results(fit, run_params)
+    
+def helper_linear_shift(session_id: str, params: Params, shift: int, blocks: Iterable[int], shift_columns: list[int]) -> None:
+    data = get_fullmodel_data(session_id = session_id, params = params)
+    run_params = data['run_params']
+    run_params | {
+        'fullmodel_fitted': params.reuse_regularization_coefficients,
+        'model_label': f'shift_{shift}',
+    }
+    fit = glm_utils.apply_shift_to_design_matrix(
+        fit=data['fit'] | get_regularization_coefficients(session_id),
+        design_mat=data['design_matrix'],
+        run_params=run_params,
+        blocks=blocks,
+        shift_columns=shift_columns,
+        shift=shift,
+    )
+    save_results(fit, run_params)
+
+def get_shift_columns(session_id: str, params: Params) -> list[int]:
+    return  [i for i, label in enumerate(get_fullmodel_data(session_id=session_id, params=params)['design_matrix'].coords['weights'].values) if any([key in label for key in params.linear_shift_variables])]
+
+def get_linear_shifts(session_id: str, params: Params) -> tuple[Iterable[int], Iterable[int]]:
+    data = get_fullmodel_data(session_id = session_id, params = params)
+    return glm_utils.get_shift_bins(run_params=params.model_dump(), fit=data['fit'], context=data['design_matrix'].sel(weights='context_0').data)
+
+def save_results(fit: dict[str, Any], run_params: dict[str, Any]) -> None:
+    pass
+    if run_params['model_label'] == 'fullmodel':
+        pass
+        # save fit as pkl on S3
+        # discard some keys from fit before saving 
+    # save some contents of fit as parquet on S3    
 
 def run_encoding(
     session_ids: str | Iterable[str],
@@ -273,29 +329,33 @@ def run_encoding(
             .collect()
             .to_dicts()
         )
-    for session_id in session_ids:
-        shifts = dynamic_routing_analysis.glm_utils
-    logger.info(
-        f"Processing {len(combinations_df)} unique session/area/probe combinations"
-    )
-    if params.use_process_pool:
+    if not params.use_process_pool:
+        for session_id in session_ids:
+            helper_fullmodel(session_id=session_id, params=params)
+            for feature_to_drop in get_features_to_drop(session_id=session_id, params=params):
+                helper_dropout(session_id=session_id, params=params, feature_to_drop=feature_to_drop)
+            shifts, blocks = get_linear_shifts(session_id=session_id, params=params)
+            for shift in shifts:
+                helper_linear_shift(session_id=session_id, params=params, shift=shift, blocks=blocks, shift_columns=get_shift_columns(session_id=session_id, params=params))
+    else:
         session_results: dict[str, list[cf.Future]] = {}
         future_to_session = {}
         lock = None  # multiprocessing.Manager().Lock() # or None
+        def run_after_full_model(future: cf)
         with cf.ProcessPoolExecutor(
             max_workers=params.max_workers,
             mp_context=multiprocessing.get_context("spawn"),
         ) as executor:
-            for row in combinations_df.iter_rows(named=True):
-                if params.skip_existing and is_row_in_existing(row):
-                    logger.info(f"Skipping {row} - results already exist")
-                    continue
+            for session_id in session_ids:
+                
+                
                 future = executor.submit(
-                    wrap_decoder_helper,
+                    helper_fullmodel,
+                    session_id=session_id,
                     params=params,
-                    **row,
                     lock=lock,
                 )
+                
                 future.add_done_callback()
                 session_results.setdefault(row["session_id"], []).append(future)
                 future_to_session[future] = row["session_id"]
