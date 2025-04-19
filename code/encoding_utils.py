@@ -200,16 +200,6 @@ class Params(pydantic_settings.BaseSettings, extra="allow"):
         )
 
 
-# `run_params` also requires:
-"""
-'features_to_drop'# needs to be added
-'project'# needs to be added
-'drop_variables'# needs to be added
-'input_variables' # will get populated in define_kernels
-'fullmodel_fitted' # needs to be added
-'model_label'?? 
-"""
-
 # ------------------------------------------------------------------ #
 
 
@@ -357,8 +347,8 @@ def get_shift_columns(session_id: str, params: Params) -> list[int]:
     return [
         i
         for i, label in enumerate(
-            get_fullmodel_data(session_id=session_id, params=params)["design_matrix"]
-            .coords["weights"]
+            get_fullmodel_data(session_id=session_id, params=params)["design_matrix"] # type: ignore
+            .coords["weights"] # type: ignore
             .values
         )
         if any([key in label for key in params.linear_shift_variables])
@@ -370,9 +360,9 @@ def get_linear_shifts(
 ) -> tuple[Iterable[int], Iterable[int]]:
     data = get_fullmodel_data(session_id=session_id, params=params)
     return glm_utils.get_shift_bins(
-        run_params=params.model_dump(),
+        run_params=params.model_dump(), # type: ignore
         fit=data["fit"],
-        context=data["design_matrix"].sel(weights="context_0").data,
+        context=data["design_matrix"].sel(weights="context_0").data,# type: ignore
     )
 
 
