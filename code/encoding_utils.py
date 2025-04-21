@@ -21,6 +21,7 @@ import logging
 import multiprocessing
 from typing import Any, Iterable, Literal
 
+import lazynwb
 import polars as pl
 import tqdm
 import upath
