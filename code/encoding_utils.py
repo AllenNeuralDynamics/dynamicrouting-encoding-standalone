@@ -237,9 +237,10 @@ def get_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]:
         run_params |= {
                         "fullmodel_fitted": False,
                         "model_label": "fullmodel",
+                        "project":  get_project(session_id)
                     }
         run_params = io_utils.define_kernels(run_params)
-        run_params["project"] = get_project(session_id)
+
 
         fit: dict[str, Any] = {}
         fit = io_utils.establish_timebins(
