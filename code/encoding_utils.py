@@ -233,12 +233,14 @@ def get_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]:
         units_table = io_utils.setup_units_table(params.model_dump(), units_table).pipe(
             lazynwb.merge_array_column, "spike_times"
         )
-        run_params = io_utils.define_kernels(params.model_dump())
-        run_params["project"] = get_project(session_id)
+        run_params = params.model_dump()
         run_params |= {
-        "fullmodel_fitted": False,
-        "model_label": "fullmodel",
-        }
+                        "fullmodel_fitted": False,
+                        "model_label": "fullmodel",
+                    }
+        run_params = io_utils.define_kernels(run_params)
+        run_params["project"] = get_project(session_id)
+
         fit: dict[str, Any] = {}
         fit = io_utils.establish_timebins(
             run_params=run_params, fit=fit, behavior_info=behavior_info
