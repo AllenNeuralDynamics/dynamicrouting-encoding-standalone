@@ -411,12 +411,13 @@ def save_results(
                 "project": get_project(session_id),
                 "cv_test": fit[run_params["model_label"]]["cv_var_test"].tolist(),
                 "cv_train": fit[run_params["model_label"]]["cv_var_train"].tolist(),
-                "weights": fit[run_params["model_label"]]["weights"].tolist(),
+                "weights": fit[run_params["model_label"]]["weights"].T.tolist(),
                 "dropped_variable": dropped_variable,
                 "shift_index": shift_index,
             },
             schema_overrides={
                 "shift_index": pl.Int32,
+                "drop_variable": pl.String,
             },
         ).write_parquet(
             parquet_path.as_posix(),
