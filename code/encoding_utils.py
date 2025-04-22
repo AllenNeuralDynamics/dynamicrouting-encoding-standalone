@@ -406,14 +406,14 @@ def save_results(
     (
         pl.DataFrame(
             {
-                "session_id": pl.lit(session_id),
-                "unit_id": fit["spike_count_arr"]["unit_id"],
-                "project": pl.lit(get_project(session_id)),
+                "session_id": session_id,
+                "unit_id": fit["spike_count_arr"]["unit_id"].tolist(),
+                "project": get_project(session_id),
                 "cv_test": fit[run_params["model_label"]]["cv_var_test"].tolist(),
                 "cv_train": fit[run_params["model_label"]]["cv_var_train"].tolist(),
                 "weights": fit[run_params["model_label"]]["weights"].tolist(),
-                "dropped_variable": pl.lit(dropped_variable),
-                "shift_index": pl.lit(shift_index),
+                "dropped_variable": dropped_variable,
+                "shift_index": shift_index,
             },
             schema_overrides={
                 "shift_index": pl.Int32,
