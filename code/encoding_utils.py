@@ -326,7 +326,7 @@ def get_features_to_drop(session_id: str, params: Params) -> list[str]:
         run_params["kernels"][key]["function_call"]
         for key in run_params["input_variables"]
     ]
-    return features_to_drop
+    return sorted(set(features_to_drop))
 
 
 def helper_dropout(session_id: str, params: Params, feature_to_drop: str) -> None:
