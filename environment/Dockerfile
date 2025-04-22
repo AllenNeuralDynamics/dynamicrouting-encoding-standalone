@@ -1,4 +1,4 @@
-# hash:sha256:98208c928390225ad1f8150867a084a1c2858d2e881b4ffff5a761d1560eba51
+# hash:sha256:b07e86b32e8703832cdcfd5aa24a56a9c1ae809fc9f16859c313936deeb5635e
 ARG REGISTRY_HOST
 FROM $REGISTRY_HOST/codeocean/mambaforge3:23.1.0-4-python3.10.12-ubuntu22.04
 
@@ -22,7 +22,7 @@ RUN pip3 install -U --no-cache-dir \
     hdmf==3.14.6 \
     pynwb==3.0.0 \
     scikit-learn==1.5.2 \
-    -e git+https://github.com/AllenInstitute/dynamic_routing_analysis@2fcda8fbf3f58886de65ffd7d100b8a6170fa68a#egg=dynamic-routing-analysis
+    -e git+https://github.com/AllenInstitute/dynamic_routing_analysis@ab5939f1fc60d9e21499de47bc3c10a6004add1a#egg=dynamic-routing-analysis
 
 ADD "https://github.com/coder/code-server/releases/download/v4.95.3/code-server-4.95.3-linux-amd64.tar.gz" /.code-server/code-server.tar.gz
 	
