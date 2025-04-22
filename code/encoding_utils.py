@@ -494,6 +494,9 @@ def run_encoding(
                             params=params,
                             feature_to_drop=feature_to_drop,
                         )
+                        if params.test:
+                            logger.info("Test mode: exiting after first feature dropout")
+                            break
                     shifts, blocks = get_linear_shifts(
                         session_id=session_id, params=params
                     )
@@ -507,6 +510,9 @@ def run_encoding(
                                 session_id=session_id, params=params
                             ),
                         )
+                        if params.test:
+                            logger.info("Test mode: exiting after first shift")
+                            break
 
                 future.add_done_callback(run_after_full_model)
 
