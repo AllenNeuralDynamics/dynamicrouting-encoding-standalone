@@ -102,7 +102,7 @@ def main():
         logger.warning(
             f"Some requested session_ids are not available as NWBs: {set(session_ids) - nwb_session_ids}"
         )
-    session_ids = set(session_ids) & nwb_session_ids
+    session_ids = sorted(set(session_ids) & nwb_session_ids)
 
     logger.info(f"Using list of {len(session_ids)} session_ids after filtering")
 
