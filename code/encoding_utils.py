@@ -1,7 +1,13 @@
 from __future__ import annotations
 
-import datetime
 import os
+os.environ["RUST_BACKTRACE"] = "1"
+os.environ["POLARS_MAX_THREADS"] = "1"
+os.environ["TOKIO_WORKER_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["RAYON_NUM_THREADS"] = "1"
+
+import datetime
 import pathlib
 import pickle
 
@@ -9,12 +15,7 @@ import dynamic_routing_analysis
 import dynamic_routing_analysis.datacube_utils
 import pydantic
 import pydantic_settings
-
-os.environ["RUST_BACKTRACE"] = "1"
-os.environ["POLARS_MAX_THREADS"] = "1"
-os.environ["TOKIO_WORKER_THREADS"] = "1"
-os.environ["OPENBLAS_NUM_THREADS"] = "1"
-os.environ["RAYON_NUM_THREADS"] = "1"
+import pydantic.functional_serializers
 
 import concurrent.futures as cf
 import logging
