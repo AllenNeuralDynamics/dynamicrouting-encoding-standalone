@@ -45,6 +45,9 @@ AWS_BATCH_JOB_ID = os.environ.get("AWS_BATCH_JOB_ID")
 def is_pipeline():
     return bool(AWS_BATCH_JOB_ID)
 
+def is_capsule():
+    return not is_pipeline() and bool(CO_COMPUTATION_ID)
+
 # logging ----------------------------------------------------------- #
 class PSTFormatter(logging.Formatter):
 

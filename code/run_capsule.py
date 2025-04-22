@@ -64,15 +64,22 @@ def main():
     logger.debug(
         f"Found {len(session_ids)} session_ids available for use after filtering"
     )
+    
+    # filter session_ids based on those requested via command line arguments:
     if params.single_session_id_to_use and params.unit_ids_to_use:
         raise ValueError(
             "Cannot use both single_session_id_to_use and unit_ids_to_use at the same time"
         )
     if params.unit_ids_to_use:
-        session_ids = set(unit_id.rsplit("_")[0] for unit_id in params.unit_ids_to_use)
+        requested_session_ids = set(unit_id.rsplit("_")[0] for unit_id in params.unit_ids_to_use)
         logger.info(
-            f"Using unit_ids_to_use {params.unit_ids_to_use} to filter session_ids: {session_ids}"
+            f"Using unit_ids_to_use {params.unit_ids_to_use} to filter session_ids"
         )
+        if requested_session_ids - set(session_ids):
+            logger.warning(
+                f"Some requested unit_ids_to_use do not correspond to known sessions: {requested_session_ids - set(session_ids)}"
+            )
+        session_ids = set(session_ids) & requested_session_ids
     elif params.single_session_id_to_use is not None:
         if params.single_session_id_to_use not in session_ids:
             logger.warning(
@@ -83,13 +90,20 @@ def main():
             f"Using single session_id {params.single_session_id_to_use} provided via command line argument"
         )
         session_ids = [params.single_session_id_to_use]
-    elif utils.is_pipeline():
-        # only one nwb will be available
-        session_ids = set(session_ids) & set(p.stem for p in utils.get_nwb_paths())
     else:
-        raise ValueError(
-            "No specific session_id provided and not in a capsule with datacube: unsure how to get sessions"
+        session_ids = []
+    
+    # filter requested sessions based on NWBs available:
+    nwb_session_ids = set(p.stem for p in utils.get_nwb_paths())
+    if not nwb_session_ids:
+        logger.warning("No NWBs found in datacube: exiting")
+        exit()
+    if set(session_ids) - nwb_session_ids:
+        logger.warning(
+            f"Some requested session_ids are not available as NWBs: {set(session_ids) - nwb_session_ids}"
         )
+    session_ids = set(session_ids) & nwb_session_ids
+
     logger.info(f"Using list of {len(session_ids)} session_ids after filtering")
 
     upath.UPath("/results/params.json").write_text(params.model_dump_json(indent=4))
