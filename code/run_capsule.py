@@ -64,8 +64,16 @@ def main():
     logger.debug(
         f"Found {len(session_ids)} session_ids available for use after filtering"
     )
-
-    if params.single_session_id_to_use is not None:
+    if params.single_session_id_to_use and params.unit_ids_to_use:
+        raise ValueError(
+            "Cannot use both single_session_id_to_use and unit_ids_to_use at the same time"
+        )
+    if params.unit_ids_to_use:
+        session_ids = set(unit_id.rsplit("_")[0] for unit_id in params.unit_ids_to_use)
+        logger.info(
+            f"Using unit_ids_to_use {params.unit_ids_to_use} to filter session_ids: {session_ids}"
+        )
+    elif params.single_session_id_to_use is not None:
         if params.single_session_id_to_use not in session_ids:
             logger.warning(
                 f"{params.single_session_id_to_use!r} not in filtered session_ids: exiting"
@@ -79,7 +87,10 @@ def main():
         # only one nwb will be available
         session_ids = set(session_ids) & set(p.stem for p in utils.get_nwb_paths())
     else:
-        logger.info(f"Using list of {len(session_ids)} session_ids after filtering")
+        raise ValueError(
+            "No specific session_id provided and not in a capsule with datacube: unsure how to get sessions"
+        )
+    logger.info(f"Using list of {len(session_ids)} session_ids after filtering")
 
     upath.UPath("/results/params.json").write_text(params.model_dump_json(indent=4))
     if params.json_path.exists():

@@ -43,6 +43,7 @@ class Params(pydantic_settings.BaseSettings, extra="allow"):
     # ----------------------------------------------------------------------------------
 
     # Capsule-specific parameters -------------------------------------- #
+    unit_ids_to_use: list[str] = pydantic.Field(default_factory=lambda: list, exclude=True, repr=True)
     single_session_id_to_use: str | None = pydantic.Field(None, exclude=True, repr=True)
     """If provided, only process this session_id. Otherwise, process all sessions that match the filtering criteria"""
     session_table_query: str = (
