@@ -407,7 +407,7 @@ def save_results(
         pl.DataFrame(
             {
                 "session_id": pl.lit(session_id),
-                "unit_id": fit["spike_count_arr"]["unit_ids"],
+                "unit_id": fit["spike_count_arr"]["unit_id"],
                 "project": pl.lit(get_project(session_id)),
                 "cv_test": fit[run_params["model_label"]]["cv_var_test"].tolist(),
                 "cv_train": fit[run_params["model_label"]]["cv_var_train"].tolist(),
