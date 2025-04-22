@@ -19,7 +19,7 @@ os.environ["RAYON_NUM_THREADS"] = "1"
 import concurrent.futures as cf
 import logging
 import multiprocessing
-from typing import Any, Iterable, Literal
+from typing import Annotated, Any, Iterable, Literal
 
 import lazynwb
 import polars as pl
@@ -30,6 +30,10 @@ from dynamic_routing_analysis import glm_utils, io_utils
 
 logger = logging.getLogger(__name__)
 
+# Required for serializing polars expressions
+Expr = Annotated[
+    pl.Expr, pydantic.functional_serializers.PlainSerializer(lambda expr: expr.meta.serialize(format='json'), return_type=str)
+]
 
 class Params(pydantic_settings.BaseSettings, extra="allow"):
     # ----------------------------------------------------------------------------------
@@ -63,12 +67,13 @@ class Params(pydantic_settings.BaseSettings, extra="allow"):
     time_of_interest: str = "full_trial"
     input_offsets: bool = True
     input_window_lengths: dict[str, float] = pydantic.Field(default_factory=dict)
-    isi_violations: float = 0.5
-    presence_ratio: float = 0.7
-    amplitude_cutoff: float = 0.1
-    activity_drift: float = 0.2
-    firing_rate: float = 1.0
-    run_on_qc_units: bool = False
+    
+    # unit inclusion parameters ---------------------------------------- #
+    presence_ratio: float | None = 0.7
+    decoder_labels_to_exclude: list[str] = pydantic.Field(
+        default_factory=lambda: ["noise"]
+    )
+    
     spike_bin_width: float = 0.1
     """in seconds"""
     areas_to_include: list[str] = pydantic.Field(default_factory=list)
@@ -172,14 +177,18 @@ class Params(pydantic_settings.BaseSettings, extra="allow"):
         return self.results_dir / f"{self.results_folder_name}.json"
 
     @pydantic.computed_field(repr=False)
-    def unit_inclusion_criteria(self) -> dict[str, float]:
-        return {
-            "isi_violations": self.isi_violations,
-            "presence_ratio": self.presence_ratio,
-            "amplitude_cutoff": self.amplitude_cutoff,
-            "activity_drift": self.activity_drift,
-            "firing_rate": self.firing_rate,
-        }
+    @property
+    def unit_inclusion_criteria(self) -> Expr:
+        exprs = []
+        if self.presence_ratio is not None:
+            exprs.append(pl.col("presence_ratio") >= self.presence_ratio)
+        if self.decoder_labels_to_exclude:
+            exprs.append(pl.col("decoder_labels").is_in(self.decoder_labels_to_exclude).not_())
+        if self.areas_to_include:
+            exprs.append(pl.col("area").is_in(self.areas_to_include))
+        if self.areas_to_exclude:
+            exprs.append(pl.col("area").is_in(self.areas_to_exclude).not_())
+        return pl.Expr.and_(*exprs)
 
     @classmethod
     def settings_customise_sources(
@@ -230,8 +239,16 @@ def get_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]:
     else:
         units_table, behavior_info = io_utils.get_session_data_from_datacube(session_id)
         print(units_table.columns)
-        units_table = io_utils.setup_units_table(params.model_dump(), units_table).pipe(
-            lazynwb.merge_array_column, "spike_times"
+        units_table = (
+            units_table
+            # filter first, then get spike times for subset of units
+            .filter(params.unit_inclusion_criteria)
+            .pipe(
+                lazynwb.merge_array_column, "spike_times"
+            )
+            .pipe(
+                lazynwb.merge_array_column, "obs_intervals"
+            )
         )
         run_params = params.model_dump()
         run_params |= {
