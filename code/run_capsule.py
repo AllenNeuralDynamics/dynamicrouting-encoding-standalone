@@ -93,7 +93,8 @@ def main():
         params.json_path.write_text(params.model_dump_json(indent=4))
 
     logger.info(f"starting encoding with {params!r}")
-    encoding_utils.get_fullmodel_data(session_id=session_ids[0], params=encoding_utils.Params())
+    # encoding_utils.get_fullmodel_data(session_id=session_ids[0], params=encoding_utils.Params())
+    encoding_utils.run_encoding(session_ids=[session_ids[0]], params=encoding_utils.Params())
 
     utils.ensure_nonempty_results_dirs()
     logger.info(f"Time elapsed: {time.time() - t0:.2f} s")
