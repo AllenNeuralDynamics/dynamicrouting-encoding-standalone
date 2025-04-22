@@ -205,7 +205,7 @@ class Params(pydantic_settings.BaseSettings, extra="allow"):
 
 
 def get_regularization_coefficients_path(session_id: str) -> pathlib.Path:
-    return pathlib.Path(f"/scratch/{session_id}.pkl")
+    return pathlib.Path(f"/scratch/{session_id}_regularization_coefficients.pkl")
 
 
 def get_regularization_coefficients(session_id: str) -> dict[str, Any]:
