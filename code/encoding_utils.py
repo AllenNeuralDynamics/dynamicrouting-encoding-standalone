@@ -381,7 +381,7 @@ def save_results(
     fit.pop("bin_centers_all", None)
     fit.pop("epoch_trace_all", None)
     fit.pop("mask", None)
-    fit["spike_counts_arr"].pop("spike_counts", None)
+    fit["spike_count_arr"].pop("spike_counts", None)
     if run_params["model_label"] == "fullmodel":
         pkl_path = params.pkl_data_dir / f"{session_id}.pkl"
         logger.info(f"Writing fullmodel data to {pkl_path}")
