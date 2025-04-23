@@ -73,7 +73,7 @@ def main():
             "Cannot use both single_session_id_to_use and unit_ids_to_use at the same time"
         )
     if params.unit_ids_to_use:
-        requested_session_ids = set(unit_id.rsplit("_")[0] for unit_id in params.unit_ids_to_use)
+        requested_session_ids = set('_'.join(unit_id.split('_')[:2]) for unit_id in params.unit_ids_to_use)
         logger.info(
             f"Using unit_ids_to_use {params.unit_ids_to_use} to filter session_ids"
         )
