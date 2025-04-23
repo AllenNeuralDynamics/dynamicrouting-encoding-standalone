@@ -185,7 +185,7 @@ class Params(pydantic_settings.BaseSettings, extra="allow"):
         if self.presence_ratio is not None:
             exprs.append(pl.col("presence_ratio") >= self.presence_ratio)
         if self.decoder_labels_to_exclude:
-            exprs.append(pl.col("decoder_labels").is_in(self.decoder_labels_to_exclude).not_())
+            exprs.append(pl.col("decoder_label").is_in(self.decoder_labels_to_exclude).not_())
         if self.areas_to_include:
             exprs.append(pl.col("area").is_in(self.areas_to_include))
         if self.areas_to_exclude:
@@ -242,7 +242,7 @@ def get_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]:
         units_table, behavior_info = io_utils.get_session_data_from_datacube(session_id)
         print(units_table.columns)
         units_table = (
-            units_table
+            pl.from_pandas(units_table)
             # filter first, then get spike times for subset of units
             .filter(params.unit_inclusion_criteria)
             .pipe(
@@ -251,7 +251,7 @@ def get_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]:
             .pipe(
                 lazynwb.merge_array_column, "obs_intervals"
             )
-        )
+        ).to_pandas()
         run_params = params.model_dump()
         run_params |= {
                         "fullmodel_fitted": False,
