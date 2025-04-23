@@ -458,6 +458,7 @@ def save_results(
                 "weights": fit[run_params["model_label"]]["weights"].T.tolist(),
                 "dropped_variable": dropped_variable,
                 "shift_index": shift_index,
+                "model_label": model_label.split('_')[0],
             },
             schema_overrides={
                 "shift_index": pl.Int32,
