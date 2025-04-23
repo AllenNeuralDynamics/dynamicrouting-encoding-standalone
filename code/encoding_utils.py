@@ -461,7 +461,7 @@ def save_results(
             },
             schema_overrides={
                 "shift_index": pl.Int32,
-                "drop_variable": pl.String,
+                "dropped_variable": pl.String,
             },
         ).write_parquet(
             parquet_path.as_posix(),
