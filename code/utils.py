@@ -30,7 +30,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 import polars as pl
 import sklearn
-import pynwb
 import tqdm
 import upath
 import zarr
@@ -163,6 +162,7 @@ def get_nwb_paths() -> tuple[pathlib.Path, ...]:
         logger.info(f"Found {len(nwb_paths)} NWB paths")
     return tuple(pathlib.Path(p) for p in nwb_paths)
 
+"""
 def get_nwb(session_id_or_path: str | pathlib.Path, raise_on_missing: bool = True, raise_on_bad_file: bool = True) -> pynwb.NWBFile:
     if isinstance(session_id_or_path, (pathlib.Path, upath.UPath)):
         nwb_path = session_id_or_path
@@ -195,6 +195,7 @@ def get_nwb(session_id_or_path: str | pathlib.Path, raise_on_missing: bool = Tru
             raise RecursionError(msg)
     else:
         return nwb
+"""
         
 def _get_spike_times_single_nwb(nwb_path: str | pathlib.Path, unit_ids: str | Iterable[str], use_pynwb: bool = True) -> dict[str, npt.NDArray[np.float64]]:    
     if isinstance(unit_ids, str):
