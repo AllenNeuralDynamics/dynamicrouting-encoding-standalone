@@ -1,6 +1,6 @@
 {
 	"version": 1,
-	"base_image": "codeocean/mambaforge3:23.1.0-4-python3.10.12-ubuntu22.04",
+	"base_image": "codeocean/c1-vscode:4.20.0-pylint2023.10.1-copilot1.143.601",
 	"args": [
 		"AWS_ACCESS_KEY_ID",
 		"AWS_DEFAULT_REGION",
@@ -27,24 +27,8 @@
 					"version": "0.5.7"
 				},
 				{
-					"name": "code-ocean-aux-tools",
-					"version": "1.1.3"
-				},
-				{
 					"name": "git+https://github.com/AllenInstitute/dynamic_routing_analysis#egg=dynamic-routing-analysis",
-					"version": "10a3c8e46c850c4c1bd70515168d7d3c3c35449c"
-				},
-				{
-					"name": "hdmf",
-					"version": "3.14.6"
-				},
-				{
-					"name": "pynwb",
-					"version": "3.0.0"
-				},
-				{
-					"name": "scikit-learn",
-					"version": "1.5.2"
+					"version": "cbebceb0dea6e3deb536d33e1fb0316ae7b0e79a"
 				}
 			],
 			"options": {},
