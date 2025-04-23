@@ -73,7 +73,7 @@ def main():
             "Cannot use both single_session_id_to_use and unit_ids_to_use at the same time"
         )
     if params.unit_ids_to_use:
-        requested_session_ids = set('_'.join(unit_id.split('_')[:2]) for unit_id in params.unit_ids_to_use)
+        requested_session_ids = set(unit_id.rsplit('_', 1)[0] for unit_id in params.unit_ids_to_use)
         logger.info(
             f"Using unit_ids_to_use {params.unit_ids_to_use} to filter session_ids"
         )
@@ -119,8 +119,7 @@ def main():
         params.json_path.write_text(params.model_dump_json(indent=4))
 
     logger.info(f"starting encoding with {params!r}")
-    # encoding_utils.get_fullmodel_data(session_id=session_ids[0], params=encoding_utils.Params())
-    encoding_utils.run_encoding(session_ids=[session_ids[0]], params=encoding_utils.Params())
+    encoding_utils.run_encoding(session_ids=[session_ids[0]], params=params)
 
     utils.ensure_nonempty_results_dirs()
     logger.info(f"Time elapsed: {time.time() - t0:.2f} s")
