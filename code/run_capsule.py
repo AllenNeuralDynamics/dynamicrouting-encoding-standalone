@@ -90,8 +90,6 @@ def main():
             f"Using single session_id {params.single_session_id_to_use} provided via command line argument"
         )
         session_ids = [params.single_session_id_to_use]
-    else:
-        session_ids = []
     
     # filter requested sessions based on NWBs available:
     nwb_session_ids = set(p.stem for p in utils.get_nwb_paths())
@@ -102,6 +100,7 @@ def main():
         logger.warning(
             f"Some requested session_ids are not available as NWBs: {set(session_ids) - nwb_session_ids}"
         )
+    
     session_ids = sorted(set(session_ids) & nwb_session_ids)
 
     logger.info(f"Using list of {len(session_ids)} session_ids after filtering")
