@@ -338,6 +338,7 @@ def helper_dropout(session_id: str, params: Params, feature_to_drop: str) -> Non
         "fullmodel_fitted": params.reuse_regularization_coefficients,
         "model_label": f"drop_{feature_to_drop}",
     }
+    run_params = io_utils.define_kernels(run_params)
     fit = glm_utils.dropout(
         fit=data["fit"] | get_regularization_coefficients(session_id),
         design_mat=data["design_matrix"],
