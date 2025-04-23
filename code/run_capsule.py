@@ -50,9 +50,11 @@ def main():
     if params.test:
         params = encoding_utils.Params(
             result_prefix=f"test/{params.result_prefix}",
-            # TODO make a proper test set of params
+            unit_ids_to_use = encoding_utils.test_units, 
+            spike_bin_width = 0.5
         )
         logger.info("Test mode: using modified set of parameters")
+
 
     # if session_id is passed as a command line argument, we will only process that session,
     # otherwise we process all session IDs that match filtering criteria:
