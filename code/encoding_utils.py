@@ -184,7 +184,7 @@ class Params(pydantic_settings.BaseSettings, extra="allow"):
     @property
     def results_folder_name(self) -> str:
         """Name of the results folder on S3, including the run_id"""
-        return f"{self.result_prefix}/{self.run_id}"
+        return f"{self.result_prefix}_{self.run_id}"
 
     @property
     def pkl_data_dir(self) -> upath.UPath:
