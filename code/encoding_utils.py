@@ -208,6 +208,8 @@ class Params(pydantic_settings.BaseSettings, extra="allow"):
             exprs.append(pl.col("area").is_in(self.areas_to_include))
         if self.areas_to_exclude:
             exprs.append(pl.col("area").is_in(self.areas_to_exclude).not_())
+        if self.unit_ids_to_use:
+            exprs.append(pl.col("unit_id").is_in(self.unit_ids_to_use))
         return pl.Expr.and_(*exprs)
 
     @classmethod
@@ -261,14 +263,9 @@ def get_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]:
         print(units_table.columns)
         units_table = (
             pl.from_pandas(units_table)
-            # filter first, then get spike times for subset of units
             .filter(params.unit_inclusion_criteria)
-            .pipe(
-                lazynwb.merge_array_column, "spike_times"
-            )
-            .pipe(
-                lazynwb.merge_array_column, "obs_intervals"
-            )
+            .pipe(lazynwb.merge_array_column, "spike_times")
+            .pipe(lazynwb.merge_array_column, "obs_intervals")
         ).to_pandas()
 
         if len(units_table) == 0:
@@ -293,7 +290,7 @@ def get_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]:
         design, fit = io_utils.add_kernels(
             design=design,
             run_params=run_params,
-            session=utils.get_nwb(session_id),
+            session=session_id,
             fit=fit,
             behavior_info=behavior_info,
         )
