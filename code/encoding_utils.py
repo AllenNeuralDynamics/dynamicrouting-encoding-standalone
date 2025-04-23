@@ -425,14 +425,20 @@ def save_results(
         logger.info(f"Writing fullmodel data to {pkl_path}")
         pkl_path.write_bytes(pickle.dumps({"fit": fit, "run_params": run_params}))
 
-    if run_params["model_label"] == "fullmodel":
+    model_label = run_params["model_label"]
+    if model_label == "fullmodel":
         dropped_variable = None
-    else:
-        dropped_variable = "_".join(run_params["model_label"].split("_")[1:])
-    if "shift" in run_params["model_label"]:
-        shift_index = int(run_params["model_label"].split("_")[-1])
-    else:
         shift_index = None
+
+    elif model_label.startswith("drop_"):
+        dropped_variable = "_".join(model_label.split("_")[1:])
+        shift_index = None
+
+    elif model_label.startswith("shift_"):
+        dropped_variable = None
+        shift_index = int(model_label.split("_")[-1])
+    else:
+        raise ValueError(f"Unrecognized model label: {model_label}")
 
     # save some contents of fit as parquet on S3
     parquet_path = (
