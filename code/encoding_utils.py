@@ -252,6 +252,9 @@ def get_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]:
                 lazynwb.merge_array_column, "obs_intervals"
             )
         ).to_pandas()
+
+        if len(units_table) == 0:
+            raise ValueError("No units meet the inclusion criteria — units_table is empty.")
         run_params = params.model_dump()
         run_params |= {
                         "fullmodel_fitted": False,
