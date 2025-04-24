@@ -7,27 +7,25 @@ os.environ["TOKIO_WORKER_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["RAYON_NUM_THREADS"] = "1"
 
+import concurrent.futures as cf
 import datetime
+import logging
+import multiprocessing
 import pathlib
 import pickle
+from typing import Annotated, Any, Iterable, Literal
 
 import dynamic_routing_analysis
-import dynamic_routing_analysis.datacube_utils
+import lazynwb
+import polars as pl
 import pydantic
 import pydantic_settings
 import pydantic.functional_serializers
-
-import concurrent.futures as cf
-import logging
-import multiprocessing
-from typing import Annotated, Any, Iterable, Literal
-
-import lazynwb
-import polars as pl
 import tqdm
 import upath
+from dynamic_routing_analysis import glm_utils, io_utils, datacube_utils
+
 import utils
-from dynamic_routing_analysis import glm_utils, io_utils
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +80,7 @@ class Params(pydantic_settings.BaseSettings, extra="allow"):
 
     # Run parameters that define a unique run (ie will be checked for 'skip_existing')
     datacube_version: str = (
-        dynamic_routing_analysis.datacube_utils.get_datacube_version()
+        datacube_utils.get_datacube_version()
     )
     time_of_interest: str = "full_trial"
     input_offsets: bool = True
@@ -260,12 +258,12 @@ def get_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]:
     else:
         _, behavior_info = io_utils.get_session_data_from_datacube(session_id)
         units_table = (
-            lazynwb.scan_nwb(utils.get_nwb_paths(session_id), 'units', low_memory=True)
+            lazynwb.scan_nwb(datacube_utils.get_nwb_paths(session_id), 'units', low_memory=True)
             .filter(params.unit_inclusion_criteria)
             .select('unit_id', 'spike_times', 'obs_intervals', 'structure', 'location')
             .collect()
         ).to_pandas()
-
+        print(units.columns)
         if len(units_table) == 0:
             raise ValueError("No units meet the inclusion criteria — units_table is empty.")
         run_params = params.model_dump()
