@@ -200,14 +200,13 @@ class Params(pydantic_settings.BaseSettings, extra="allow"):
     @property
     def unit_inclusion_criteria(self) -> Expr:
         exprs = []
+        exprs.append(pl.col('decoder_label') != 'noise')
         if self.presence_ratio is not None:
             exprs.append(pl.col("presence_ratio") >= self.presence_ratio)
-        if self.decoder_labels_to_exclude:
-            exprs.append(pl.col("decoder_label").is_in(self.decoder_labels_to_exclude).not_())
         if self.areas_to_include:
-            exprs.append(pl.col("area").is_in(self.areas_to_include))
+            exprs.append(pl.col("structure").is_in(self.areas_to_include))
         if self.areas_to_exclude:
-            exprs.append(pl.col("area").is_in(self.areas_to_exclude).not_())
+            exprs.append(pl.col("structure").is_in(self.areas_to_exclude).not_())
         if self.unit_ids_to_use:
             exprs.append(pl.col("unit_id").is_in(self.unit_ids_to_use))
         return pl.Expr.and_(*exprs)
@@ -294,6 +293,7 @@ def get_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]:
             fit=fit,
             behavior_info=behavior_info,
         )
+        logger.info("")
         design_matrix = design.get_X()
         data = {"fit": fit, "design_matrix": design_matrix, "run_params": run_params}
         get_fullmodel_data_path(session_id).write_bytes(pickle.dumps(data))
