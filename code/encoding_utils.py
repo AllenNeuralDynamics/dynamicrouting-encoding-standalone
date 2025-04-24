@@ -258,13 +258,12 @@ def get_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]:
             )
         return data
     else:
-        units_table, behavior_info = io_utils.get_session_data_from_datacube(session_id)
-        print(units_table.columns)
+        _, behavior_info = io_utils.get_session_data_from_datacube(session_id)
         units_table = (
-            pl.from_pandas(units_table)
+            lazynwb.scan_nwb(utils.get_nwb_paths(session_id), 'units', low_memory=True)
             .filter(params.unit_inclusion_criteria)
-            .pipe(lazynwb.merge_array_column, "spike_times")
-            .pipe(lazynwb.merge_array_column, "obs_intervals")
+            .select('unit_id', 'spike_times', 'obs_intervals', 'structure', 'location')
+            .collect()
         ).to_pandas()
 
         if len(units_table) == 0:
