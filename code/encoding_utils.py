@@ -6,9 +6,13 @@ os.environ["POLARS_MAX_THREADS"] = "1"
 os.environ["TOKIO_WORKER_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["RAYON_NUM_THREADS"] = "1"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
 import concurrent.futures as cf
 import datetime
+import gc
 import logging
 import multiprocessing
 import pathlib
@@ -256,21 +260,25 @@ def get_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]:
             )
         return data
     else:
-        _, behavior_info = io_utils.get_session_data_from_datacube(session_id)
+        print(f'{session_id} | getting units and behavior info via DRA')
+        lazy_units, behavior_info = io_utils.get_session_data_from_datacube(session_id, lazy=True, low_memory=True)
+        print('getting units table with lazynwb')
         units_table = (
-            lazynwb.scan_nwb(datacube_utils.get_nwb_paths(session_id), 'units', low_memory=True)
+            lazy_units
             .filter(params.unit_inclusion_criteria)
-            .select('unit_id', 'spike_times', 'obs_intervals', 'structure', 'location')
+            .select('unit_id', 'spike_times', 'obs_intervals')
             .collect()
-        ).to_pandas()
-        print(units.columns)
+        )
+        print(units_table.columns)
+        print(f'{session_id} | converting units_table to pandas')
+        units_table = units_table.to_pandas()
         if len(units_table) == 0:
             raise ValueError("No units meet the inclusion criteria — units_table is empty.")
         run_params = params.model_dump()
         run_params |= {
                         "fullmodel_fitted": False,
                         "model_label": "fullmodel",
-                        "project":  get_project(session_id)
+                        "project":  get_project(session_id),
                     }
         run_params = io_utils.define_kernels(run_params)
 
@@ -282,6 +290,9 @@ def get_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]:
         fit = io_utils.process_spikes(
             units_table=units_table, run_params=run_params, fit=fit
         )
+        del units_table
+        gc.collect()
+
         design: io_utils.DesignMatrix = io_utils.DesignMatrix(fit)
         design, fit = io_utils.add_kernels(
             design=design,
@@ -310,6 +321,7 @@ def get_project(session_id: str) -> str:
 
 
 def helper_fullmodel(session_id: str, params: Params) -> None:
+    print(f'{session_id} | running fullmodel helper')
     data = get_fullmodel_data(session_id=session_id, params=params)
     run_params = data["run_params"]
     run_params |= {
@@ -450,8 +462,8 @@ def save_results(
                 "session_id": session_id,
                 "unit_id": fit["spike_count_arr"]["unit_id"].tolist(),
                 "project": get_project(session_id),
-                "cv_test": fit[run_params["model_label"]]["cv_var_test"].tolist(),
-                "cv_train": fit[run_params["model_label"]]["cv_var_train"].tolist(),
+                "cv_test": fit[run_params["model_label"]]["cv_var_test"],
+                "cv_train": fit[run_params["model_label"]]["cv_var_train"],
                 "weights": fit[run_params["model_label"]]["weights"].T.tolist(),
                 "dropped_variable": dropped_variable,
                 "shift_index": shift_index,

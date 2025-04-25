@@ -6,6 +6,9 @@ os.environ['POLARS_MAX_THREADS'] = '1'
 os.environ["TOKIO_WORKER_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["RAYON_NUM_THREADS"] = "1"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
 import json
 import logging

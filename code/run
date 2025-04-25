@@ -18,7 +18,10 @@ pip install -e . -q  --no-cache-dir
 commit_hash=$(git rev-parse HEAD)
 echo Installed $package: $commit_hash
 cd ..
+python -m pip install lazynwb -U -q
+python -m pip show lazynwb
 fi
+
 
 # --------------------------------------------------------------------------------
 # This is the master script for the capsule. When you click "Reproducible Run", the code in this file will execute.
