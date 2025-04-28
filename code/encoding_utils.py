@@ -243,8 +243,23 @@ def get_regularization_coefficients_path(session_id: str) -> pathlib.Path:
     return pathlib.Path(f"/scratch/{session_id}_regularization_coefficients.pkl")
 
 
-def get_regularization_coefficients(session_id: str) -> dict[str, Any]:
-    return pickle.loads(get_regularization_coefficients_path(session_id).read_bytes())
+def get_regularization_coefficients(session_id: str, params: Params) -> dict[str, Any]:
+    if get_regularization_coefficients_path(session_id).exists():
+        return pickle.loads(get_regularization_coefficients_path(session_id).read_bytes())
+    
+    elif get_s3_fullmodel_result_pickle_path(session_id, params).exists():
+        fit = pickle.loads(get_s3_fullmodel_result_pickle_path(session_id, params).read_bytes())['fit']
+        return get_regularization_coef_dict_from_fit(fit)
+    else:
+        raise FileNotFoundError(f"Could not find saved files (local or on S3) containing regularization coefficients for session {session_id}")
+
+def get_regularization_coef_dict_from_fit(fit):
+    regularization_coef_dict = {}
+    for prefix in ["cell_regularization", "cell_L1_ratio", "cell_rank"]:
+        for suffix in ["", "_nested"]:
+            key = f"{prefix}{suffix}"
+            regularization_coef_dict[key] = fit[key]
+    return regularization_coef_dict
 
 
 def get_local_fullmodel_data_path(session_id: str) -> pathlib.Path:
@@ -263,58 +278,61 @@ def get_local_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]
             )
         return data
     else:
-        print(f'{session_id} | getting units and behavior info via DRA')
-        lazy_units, behavior_info = io_utils.get_session_data_from_datacube(session_id, lazy=True, low_memory=True)
-        print('getting units table with lazynwb')
-        units_table = (
+        return generate_fullmodel_data(session_id, params)
+
+def generate_fullmodel_data(session_id, params):
+    print(f'{session_id} | getting units and behavior info via DRA')
+    lazy_units, behavior_info = io_utils.get_session_data_from_datacube(session_id, lazy=True, low_memory=True)
+    print('getting units table with lazynwb')
+    units_table = (
             lazy_units
             .filter(params.unit_inclusion_criteria)
             .select('unit_id', 'spike_times', 'obs_intervals')
             .collect()
         )
-        print(units_table.columns)
-        print(f'{session_id} | converting units_table to pandas')
-        units_table = units_table.to_pandas()
-        if len(units_table) == 0:
-            raise ValueError("No units meet the inclusion criteria — units_table is empty.")
-        run_params = params.model_dump()
-        run_params |= {
+    print(units_table.columns)
+    print(f'{session_id} | converting units_table to pandas')
+    units_table = units_table.to_pandas()
+    if len(units_table) == 0:
+        raise ValueError("No units meet the inclusion criteria — units_table is empty.")
+    run_params = params.model_dump()
+    run_params |= {
                         "fullmodel_fitted": False,
                         "model_label": "fullmodel",
                         "project":  get_project(session_id),
                     }
-        run_params = io_utils.define_kernels(run_params)
+    run_params = io_utils.define_kernels(run_params)
 
 
-        fit: dict[str, Any] = {}
-        fit = io_utils.establish_timebins(
+    fit: dict[str, Any] = {}
+    fit = io_utils.establish_timebins(
             run_params=run_params, fit=fit, behavior_info=behavior_info
         )
-        fit = io_utils.process_spikes(
+    fit = io_utils.process_spikes(
             units_table=units_table, run_params=run_params, fit=fit
         )
-        del units_table
-        gc.collect()
+    del units_table
+    gc.collect()
 
-        design: io_utils.DesignMatrix = io_utils.DesignMatrix(fit)
-        design, fit = io_utils.add_kernels(
+    design: io_utils.DesignMatrix = io_utils.DesignMatrix(fit)
+    design, fit = io_utils.add_kernels(
             design=design,
             run_params=run_params,
             session=session_id,
             fit=fit,
             behavior_info=behavior_info,
         )
-        logger.info("")
-        design_matrix = design.get_X()
-        data = {"fit": fit, "design_matrix": design_matrix, "run_params": run_params}
-        get_local_fullmodel_data_path(session_id).write_bytes(pickle.dumps(data))
-        if params.test:
-            pathlib.Path(
+    logger.info("")
+    design_matrix = design.get_X()
+    data = {"fit": fit, "design_matrix": design_matrix, "run_params": run_params}
+    get_local_fullmodel_data_path(session_id).write_bytes(pickle.dumps(data))
+    if params.test:
+        pathlib.Path(
                 get_local_fullmodel_data_path(session_id)
                 .as_posix()
                 .replace("scratch", "results")
             ).write_bytes(pickle.dumps(data))
-        return data
+    return data
 
 def get_s3_fullmodel_result_pickle_path(session_id: str, params: Params):
     return params.pkl_data_dir / f"{session_id}.pkl"
@@ -344,13 +362,8 @@ def helper_fullmodel(session_id: str, params: Params) -> None:
     fit = glm_utils.evaluate_model(
         fit=fit, design_mat=data["design_matrix"], run_params=run_params
     )
-    regularization_coef_dict = {}
-    for prefix in ["cell_regularization", "cell_L1_ratio", "cell_rank"]:
-        for suffix in ["", "_nested"]:
-            key = f"{prefix}{suffix}"
-            regularization_coef_dict[key] = fit[key]
     get_regularization_coefficients_path(session_id).write_bytes(
-        pickle.dumps(regularization_coef_dict)
+        pickle.dumps(get_regularization_coef_dict_from_fit(fit))
     )
     save_results(session_id=session_id, fit=fit, run_params=run_params, params=params)
 
@@ -380,7 +393,7 @@ def helper_dropout(session_id: str, params: Params, feature_to_drop: str) -> Non
     }
     run_params = io_utils.define_kernels(run_params)
     fit = glm_utils.dropout(
-        fit=data["fit"] | get_regularization_coefficients(session_id),
+        fit=data["fit"] | get_regularization_coefficients(session_id, params),
         design_mat=data["design_matrix"],
         run_params=run_params,
     )
@@ -405,7 +418,7 @@ def helper_linear_shift(
         "model_label": model_label,
     }
     fit = glm_utils.apply_shift_to_design_matrix(
-        fit=data["fit"] | get_regularization_coefficients(session_id),
+        fit=data["fit"] | get_regularization_coefficients(session_id, params),
         design_mat=data["design_matrix"],
         run_params=run_params,
         blocks=blocks,
