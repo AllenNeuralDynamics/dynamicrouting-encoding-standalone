@@ -239,13 +239,13 @@ class Params(pydantic_settings.BaseSettings, extra="allow"):
 # ------------------------------------------------------------------ #
 
 
-def get_regularization_coefficients_path(session_id: str) -> pathlib.Path:
+def regularization_coefficients_path(session_id: str) -> pathlib.Path:
     return pathlib.Path(f"/scratch/{session_id}_regularization_coefficients.pkl")
 
 
 def get_regularization_coefficients(session_id: str, params: Params) -> dict[str, Any]:
-    if get_regularization_coefficients_path(session_id).exists():
-        return pickle.loads(get_regularization_coefficients_path(session_id).read_bytes())
+    if regularization_coefficients_path(session_id).exists():
+        return pickle.loads(regularization_coefficients_path(session_id).read_bytes())
     
     elif get_s3_fullmodel_result_pickle_path(session_id, params).exists():
         fit = pickle.loads(get_s3_fullmodel_result_pickle_path(session_id, params).read_bytes())['fit']
@@ -262,7 +262,7 @@ def get_regularization_coef_dict_from_fit(fit):
     return regularization_coef_dict
 
 
-def get_local_fullmodel_data_path(session_id: str) -> pathlib.Path:
+def local_fullmodel_data_path(session_id: str) -> pathlib.Path:
     return pathlib.Path(f"/scratch/{session_id}.pkl")
 
 
@@ -270,11 +270,11 @@ def get_local_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]
     """Equivalent to reading the 'inputs.npz' file in the pipeline.
     If it doesn't exist, it will be created.
     """
-    if get_local_fullmodel_data_path(session_id).exists():
-        data = pickle.loads(get_local_fullmodel_data_path(session_id).read_bytes())
+    if local_fullmodel_data_path(session_id).exists():
+        data = pickle.loads(local_fullmodel_data_path(session_id).read_bytes())
         if params.reuse_regularization_coefficients:
             data["fit"] |= pickle.loads(
-                get_regularization_coefficients_path(session_id).read_bytes()
+                regularization_coefficients_path(session_id).read_bytes()
             )
         return data
     else:
@@ -325,10 +325,10 @@ def generate_fullmodel_data(session_id, params):
     logger.info("")
     design_matrix = design.get_X()
     data = {"fit": fit, "design_matrix": design_matrix, "run_params": run_params}
-    get_local_fullmodel_data_path(session_id).write_bytes(pickle.dumps(data))
+    local_fullmodel_data_path(session_id).write_bytes(pickle.dumps(data))
     if params.test:
         pathlib.Path(
-                get_local_fullmodel_data_path(session_id)
+                local_fullmodel_data_path(session_id)
                 .as_posix()
                 .replace("scratch", "results")
             ).write_bytes(pickle.dumps(data))
@@ -362,7 +362,7 @@ def helper_fullmodel(session_id: str, params: Params) -> None:
     fit = glm_utils.evaluate_model(
         fit=fit, design_mat=data["design_matrix"], run_params=run_params
     )
-    get_regularization_coefficients_path(session_id).write_bytes(
+    regularization_coefficients_path(session_id).write_bytes(
         pickle.dumps(get_regularization_coef_dict_from_fit(fit))
     )
     save_results(session_id=session_id, fit=fit, run_params=run_params, params=params)
@@ -430,7 +430,7 @@ def helper_linear_shift(
 
 
 def get_partial_fullmodel_data_local_or_s3(session_id: str, params: Params) -> dict[str, dict]:
-    if get_local_fullmodel_data_path(session_id).exists():
+    if local_fullmodel_data_path(session_id).exists():
         data = get_local_fullmodel_data(session_id=session_id, params=params)
     elif get_s3_fullmodel_result_pickle_path(session_id, params).exists():
         data = pickle.loads(get_s3_fullmodel_result_pickle_path(session_id, params).read_bytes())
