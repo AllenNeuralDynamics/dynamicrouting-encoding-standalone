@@ -273,9 +273,7 @@ def get_local_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]
     if local_fullmodel_data_path(session_id).exists():
         data = pickle.loads(local_fullmodel_data_path(session_id).read_bytes())
         if params.reuse_regularization_coefficients:
-            data["fit"] |= pickle.loads(
-                regularization_coefficients_path(session_id).read_bytes()
-            )
+            data["fit"] |= get_regularization_coefficients(session_id, params)
         return data
     else:
         return generate_fullmodel_data(session_id, params)
@@ -393,7 +391,7 @@ def helper_dropout(session_id: str, params: Params, feature_to_drop: str) -> Non
     }
     run_params = io_utils.define_kernels(run_params)
     fit = glm_utils.dropout(
-        fit=data["fit"] | get_regularization_coefficients(session_id, params),
+        fit=data["fit"],
         design_mat=data["design_matrix"],
         run_params=run_params,
     )
@@ -418,7 +416,7 @@ def helper_linear_shift(
         "model_label": model_label,
     }
     fit = glm_utils.apply_shift_to_design_matrix(
-        fit=data["fit"] | get_regularization_coefficients(session_id, params),
+        fit=data["fit"],
         design_mat=data["design_matrix"],
         run_params=run_params,
         blocks=blocks,
