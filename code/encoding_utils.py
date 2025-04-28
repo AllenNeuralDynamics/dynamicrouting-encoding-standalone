@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+import io
 import os
 os.environ["RUST_BACKTRACE"] = "1"
 os.environ["POLARS_MAX_THREADS"] = "1"
@@ -245,16 +247,16 @@ def get_regularization_coefficients(session_id: str) -> dict[str, Any]:
     return pickle.loads(get_regularization_coefficients_path(session_id).read_bytes())
 
 
-def get_fullmodel_data_path(session_id: str) -> pathlib.Path:
+def get_local_fullmodel_data_path(session_id: str) -> pathlib.Path:
     return pathlib.Path(f"/scratch/{session_id}.pkl")
 
 
-def get_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]:
+def get_local_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]:
     """Equivalent to reading the 'inputs.npz' file in the pipeline.
     If it doesn't exist, it will be created.
     """
-    if get_fullmodel_data_path(session_id).exists():
-        data = pickle.loads(get_fullmodel_data_path(session_id).read_bytes())
+    if get_local_fullmodel_data_path(session_id).exists():
+        data = pickle.loads(get_local_fullmodel_data_path(session_id).read_bytes())
         if params.reuse_regularization_coefficients:
             data["fit"] |= pickle.loads(
                 get_regularization_coefficients_path(session_id).read_bytes()
@@ -305,14 +307,17 @@ def get_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]:
         logger.info("")
         design_matrix = design.get_X()
         data = {"fit": fit, "design_matrix": design_matrix, "run_params": run_params}
-        get_fullmodel_data_path(session_id).write_bytes(pickle.dumps(data))
+        get_local_fullmodel_data_path(session_id).write_bytes(pickle.dumps(data))
         if params.test:
             pathlib.Path(
-                get_fullmodel_data_path(session_id)
+                get_local_fullmodel_data_path(session_id)
                 .as_posix()
                 .replace("scratch", "results")
             ).write_bytes(pickle.dumps(data))
         return data
+
+def get_s3_fullmodel_result_pickle_path(session_id: str, params: Params):
+    return params.pkl_data_dir / f"{session_id}.pkl"
 
 
 def get_project(session_id: str) -> str:
@@ -326,7 +331,7 @@ def helper_fullmodel(session_id: str, params: Params) -> None:
     if params.skip_existing and get_parquet_path(session_id=session_id, params=params, model_label=model_label).exists():
         return
     print(f'{session_id} | running fullmodel helper')
-    data = get_fullmodel_data(session_id=session_id, params=params)
+    data = get_local_fullmodel_data(session_id=session_id, params=params)
     run_params = data["run_params"]
     run_params |= {
         "fullmodel_fitted": False,
@@ -352,7 +357,7 @@ def helper_fullmodel(session_id: str, params: Params) -> None:
 def get_features_to_drop(session_id: str, params: Params) -> list[str]:
     if params.features_to_drop:
         return params.features_to_drop
-    run_params = get_fullmodel_data(session_id=session_id, params=params)["run_params"]
+    run_params = get_partial_fullmodel_data_local_or_s3(session_id, params)['run_params']
     features_to_drop = list(run_params["input_variables"]) + [
         run_params["kernels"][key]["function_call"]
         for key in run_params["input_variables"]
@@ -364,7 +369,7 @@ def helper_dropout(session_id: str, params: Params, feature_to_drop: str) -> Non
     model_label = f"drop_{feature_to_drop}"
     if params.skip_existing and get_parquet_path(session_id=session_id, params=params, model_label=model_label).exists():
         return
-    data = get_fullmodel_data(session_id=session_id, params=params)
+    data = get_local_fullmodel_data(session_id=session_id, params=params)
     run_params = data["run_params"]
     run_params |= {
         "drop_variables": [feature_to_drop],
@@ -390,7 +395,7 @@ def helper_linear_shift(
     model_label = f"shift_{shift}"
     if params.skip_existing and get_parquet_path(session_id=session_id, params=params, model_label=model_label).exists():
         return
-    data = get_fullmodel_data(session_id=session_id, params=params)
+    data = get_local_fullmodel_data(session_id=session_id, params=params)
     run_params = data["run_params"]
     run_params |= {
         "fullmodel_fitted": params.reuse_regularization_coefficients,
@@ -407,26 +412,50 @@ def helper_linear_shift(
     save_results(session_id=session_id, fit=fit, run_params=run_params, params=params)
 
 
+
+def get_partial_fullmodel_data_local_or_s3(session_id: str, params: Params) -> dict[str, dict]:
+    if get_local_fullmodel_data_path(session_id).exists():
+        data = get_local_fullmodel_data(session_id=session_id, params=params)
+    elif get_s3_fullmodel_result_pickle_path(session_id, params).exists():
+        data = pickle.loads(get_s3_fullmodel_result_pickle_path(session_id, params).read_bytes())
+    else:
+        raise FileNotFoundError(f"Could not find saved files (local or on S3) containing fit/run_params for session {session_id}")
+    return data
+
 def get_shift_columns(session_id: str, params: Params) -> list[int]:
+    data = get_partial_fullmodel_data_local_or_s3(session_id=session_id, params=params)
     return [
         i
         for i, label in enumerate(
-            get_fullmodel_data(session_id=session_id, params=params)["design_matrix"] # type: ignore
-            .coords["weights"] # type: ignore
-            .values
+            data['fit']['fullmodel']['weight_labels'] # type: ignore
         )
         if any([key in label for key in params.linear_shift_variables])
     ]
 
-
 def get_linear_shifts(
     session_id: str, params: Params
 ) -> tuple[Iterable[int], Iterable[int]]:
-    data = get_fullmodel_data(session_id=session_id, params=params)
+    data = get_partial_fullmodel_data_local_or_s3(session_id=session_id, params=params)
+    if 'design_matrix' in data:
+        context = data["design_matrix"].sel(weights="context_0").data # type: ignore
+    else:
+        # make a spoofed design matrix to get the context regressor (but without binned spike counts)
+        run_params_for_context = copy.deepcopy(data["run_params"])
+        run_params_for_context['input_variables'] = ['context']
+        run_params_for_context = io_utils.define_kernels(run_params_for_context)
+        design_matrix_for_context = io_utils.DesignMatrix(data["fit"])
+        design_matrix_for_context, _ = io_utils.add_kernels(
+            design=design_matrix_for_context,
+            run_params=run_params_for_context,
+            session=session_id,
+            fit=data["fit"],
+            behavior_info=io_utils.get_session_data_from_datacube(session_id)[1],
+        )
+        context = design_matrix_for_context.get_X()
     return glm_utils.get_shift_bins(
         run_params=params.model_dump(), # type: ignore
         fit=data["fit"],
-        context=data["design_matrix"].sel(weights="context_0").data,# type: ignore
+        context=context,
     )
 
 
@@ -446,7 +475,7 @@ def save_results(
     fit.pop("mask", None)
     fit["spike_count_arr"].pop("spike_counts", None)
     if run_params["model_label"] == "fullmodel":
-        pkl_path = params.pkl_data_dir / f"{session_id}.pkl"
+        pkl_path = get_s3_fullmodel_result_pickle_path(session_id, params)
         logger.info(f"Writing fullmodel data to {pkl_path}")
         pkl_path.write_bytes(pickle.dumps({"fit": fit, "run_params": run_params}))
 
