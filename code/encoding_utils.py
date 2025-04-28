@@ -74,6 +74,7 @@ class Params(pydantic_settings.BaseSettings, extra="allow"):
         datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     )  # created once at runtime: same for all Params instances
     """A unique string that should be attached to all decoding runs in the same batch"""
+    skip_existing: bool = pydantic.Field(True, exclude=True)
     test: bool = pydantic.Field(False, exclude=True)
     logging_level: str | int = pydantic.Field("INFO", exclude=True)
     update_packages_from_source: bool = pydantic.Field(False, exclude=True)
@@ -321,12 +322,15 @@ def get_project(session_id: str) -> str:
 
 
 def helper_fullmodel(session_id: str, params: Params) -> None:
+    model_label = "fullmodel"
+    if params.skip_existing and get_parquet_path(session_id=session_id, params=params, model_label=model_label).exists():
+        return
     print(f'{session_id} | running fullmodel helper')
     data = get_fullmodel_data(session_id=session_id, params=params)
     run_params = data["run_params"]
     run_params |= {
         "fullmodel_fitted": False,
-        "model_label": "fullmodel",
+        "model_label": model_label,
     }
     fit = glm_utils.optimize_model(
         fit=data["fit"], design_mat=data["design_matrix"], run_params=run_params
@@ -348,7 +352,6 @@ def helper_fullmodel(session_id: str, params: Params) -> None:
 def get_features_to_drop(session_id: str, params: Params) -> list[str]:
     if params.features_to_drop:
         return params.features_to_drop
-
     run_params = get_fullmodel_data(session_id=session_id, params=params)["run_params"]
     features_to_drop = list(run_params["input_variables"]) + [
         run_params["kernels"][key]["function_call"]
@@ -358,12 +361,15 @@ def get_features_to_drop(session_id: str, params: Params) -> list[str]:
 
 
 def helper_dropout(session_id: str, params: Params, feature_to_drop: str) -> None:
+    model_label = f"drop_{feature_to_drop}"
+    if params.skip_existing and get_parquet_path(session_id=session_id, params=params, model_label=model_label).exists():
+        return
     data = get_fullmodel_data(session_id=session_id, params=params)
     run_params = data["run_params"]
     run_params |= {
         "drop_variables": [feature_to_drop],
         "fullmodel_fitted": params.reuse_regularization_coefficients,
-        "model_label": f"drop_{feature_to_drop}",
+        "model_label": model_label,
     }
     run_params = io_utils.define_kernels(run_params)
     fit = glm_utils.dropout(
@@ -381,11 +387,14 @@ def helper_linear_shift(
     blocks: Iterable[int],
     shift_columns: list[int],
 ) -> None:
+    model_label = f"shift_{shift}"
+    if params.skip_existing and get_parquet_path(session_id=session_id, params=params, model_label=model_label).exists():
+        return
     data = get_fullmodel_data(session_id=session_id, params=params)
     run_params = data["run_params"]
     run_params |= {
         "fullmodel_fitted": params.reuse_regularization_coefficients,
-        "model_label": f"shift_{shift}",
+        "model_label": model_label,
     }
     fit = glm_utils.apply_shift_to_design_matrix(
         fit=data["fit"] | get_regularization_coefficients(session_id),
@@ -421,6 +430,13 @@ def get_linear_shifts(
     )
 
 
+def get_parquet_path(session_id: str, params: Params, model_label: str) -> upath.UPath:
+    return (
+        params.results_dir
+        / params.results_folder_name
+        / f"{session_id}_{model_label}.parquet"
+    )
+
 def save_results(
     session_id: str, fit: dict[str, Any], params: Params, run_params: dict[str, Any]
 ) -> None:
@@ -450,10 +466,10 @@ def save_results(
         raise ValueError(f"Unrecognized model label: {model_label}")
 
     # save some contents of fit as parquet on S3
-    parquet_path = (
-        params.results_dir
-        / params.results_folder_name
-        / f"{session_id}_{run_params['model_label']}.parquet"
+    parquet_path = get_parquet_path(
+        session_id=session_id,
+        params=params,
+        model_label=run_params['model_label'],
     )
     logger.info(f"Writing results to {parquet_path}")
     (
@@ -487,8 +503,6 @@ def run_encoding(
 ) -> None:
     if isinstance(session_ids, str):
         session_ids = [session_ids]
-
-    # TODO add skip_existing option
 
     if not params.use_process_pool:
         for session_id in tqdm.tqdm(
