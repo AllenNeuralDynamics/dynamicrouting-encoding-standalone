@@ -329,6 +329,7 @@ def get_project(session_id: str) -> str:
 def helper_fullmodel(session_id: str, params: Params) -> None:
     model_label = "fullmodel"
     if params.skip_existing and get_parquet_path(session_id=session_id, params=params, model_label=model_label).exists():
+        print(f'{session_id} | skipping fullmodel helper')
         return
     print(f'{session_id} | running fullmodel helper')
     data = get_local_fullmodel_data(session_id=session_id, params=params)
@@ -368,6 +369,7 @@ def get_features_to_drop(session_id: str, params: Params) -> list[str]:
 def helper_dropout(session_id: str, params: Params, feature_to_drop: str) -> None:
     model_label = f"drop_{feature_to_drop}"
     if params.skip_existing and get_parquet_path(session_id=session_id, params=params, model_label=model_label).exists():
+        print(f'{session_id} | skipping dropout helper {feature_to_drop}')
         return
     data = get_local_fullmodel_data(session_id=session_id, params=params)
     run_params = data["run_params"]
@@ -394,6 +396,7 @@ def helper_linear_shift(
 ) -> None:
     model_label = f"shift_{shift}"
     if params.skip_existing and get_parquet_path(session_id=session_id, params=params, model_label=model_label).exists():
+        print(f'{session_id} | skipping shift helper {shift}')
         return
     data = get_local_fullmodel_data(session_id=session_id, params=params)
     run_params = data["run_params"]
