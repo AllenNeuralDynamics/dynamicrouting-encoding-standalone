@@ -272,12 +272,21 @@ def get_local_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]
     """
     if local_fullmodel_data_path(session_id).exists():
         data = pickle.loads(local_fullmodel_data_path(session_id).read_bytes())
-        if params.reuse_regularization_coefficients:
-            data["fit"] |= get_regularization_coefficients(session_id, params)
         return data
     else:
-        return generate_fullmodel_data(session_id, params)
-
+        # doesn't exist, so create it
+        data = generate_fullmodel_data(session_id, params)
+        
+        # and save it
+        local_fullmodel_data_path(session_id).write_bytes(pickle.dumps(data))
+        if params.test:
+            pathlib.Path(
+                    local_fullmodel_data_path(session_id)
+                    .as_posix()
+                    .replace("scratch", "results")
+                ).write_bytes(pickle.dumps(data))
+        return data
+    
 def generate_fullmodel_data(session_id, params):
     print(f'{session_id} | getting units and behavior info via DRA')
     lazy_units, behavior_info = io_utils.get_session_data_from_datacube(session_id, lazy=True, low_memory=True)
@@ -322,15 +331,7 @@ def generate_fullmodel_data(session_id, params):
         )
     logger.info("")
     design_matrix = design.get_X()
-    data = {"fit": fit, "design_matrix": design_matrix, "run_params": run_params}
-    local_fullmodel_data_path(session_id).write_bytes(pickle.dumps(data))
-    if params.test:
-        pathlib.Path(
-                local_fullmodel_data_path(session_id)
-                .as_posix()
-                .replace("scratch", "results")
-            ).write_bytes(pickle.dumps(data))
-    return data
+    return {"fit": fit, "design_matrix": design_matrix, "run_params": run_params}
 
 def get_s3_fullmodel_result_pickle_path(session_id: str, params: Params):
     return params.pkl_data_dir / f"{session_id}.pkl"
@@ -391,7 +392,7 @@ def helper_dropout(session_id: str, params: Params, feature_to_drop: str) -> Non
     }
     run_params = io_utils.define_kernels(run_params)
     fit = glm_utils.dropout(
-        fit=data["fit"],
+        fit=data["fit"] | get_regularization_coefficients(session_id, params),
         design_mat=data["design_matrix"],
         run_params=run_params,
     )
@@ -416,7 +417,7 @@ def helper_linear_shift(
         "model_label": model_label,
     }
     fit = glm_utils.apply_shift_to_design_matrix(
-        fit=data["fit"],
+        fit=data["fit"] | get_regularization_coefficients(session_id, params),
         design_mat=data["design_matrix"],
         run_params=run_params,
         blocks=blocks,
