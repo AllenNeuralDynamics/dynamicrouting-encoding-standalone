@@ -91,8 +91,8 @@ class Params(pydantic_settings.BaseSettings, extra="allow"):
     )
     single_session_id_to_use: str | None = pydantic.Field(None, exclude=True, repr=True)
     """If provided, only process this session_id. Otherwise, process all sessions that match the filtering criteria"""
-    session_table_query: str = (
-        'is_ephys & is_task & is_annotated & is_production & project == "DynamicRouting" & issues=="[]"'
+    session_table_query: str = pydantic.Field(
+        'is_ephys & is_task & is_annotated & is_production & issues=="[]"', exclude=True
     )
     run_id: str = pydantic.Field(
         datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -512,9 +512,11 @@ def get_linear_shifts(
     else:
         # make a spoofed design matrix to get the context regressor (but without binned spike counts)
         run_params_for_context = copy.deepcopy(data["run_params"])
-        run_params_for_context["input_variables"] = ["context"]
+        run_params_for_context["input_variables"] = ['context']
         run_params_for_context = io_utils.define_kernels(run_params_for_context)
+
         design_matrix_for_context = io_utils.DesignMatrix(data["fit"])
+        
         design_matrix_for_context, _ = io_utils.add_kernels(
             design=design_matrix_for_context,
             run_params=run_params_for_context,
@@ -541,9 +543,6 @@ def get_parquet_path(session_id: str, params: Params, model_label: str) -> upath
 def save_results(
     session_id: str, fit: dict[str, Any], params: Params, run_params: dict[str, Any]
 ) -> None:
-    fit.pop("timebins_all", None)
-    fit.pop("bin_centers_all", None)
-    fit.pop("epoch_trace_all", None)
     fit["spike_count_arr"].pop("spike_counts", None)
     if run_params["model_label"] == "fullmodel":
         pkl_path = get_s3_fullmodel_result_pickle_path(session_id, params)
@@ -597,6 +596,7 @@ def save_results(
     )
 
 def run_after_full_model(session_id: str, params: Params) -> None:
+    print(f'{session_id} | running after full model')
     for feature_to_drop in get_features_to_drop(
         session_id=session_id, params=params
     ):
@@ -610,9 +610,11 @@ def run_after_full_model(session_id: str, params: Params) -> None:
                 "Test mode: exiting after first feature dropout"
             )
             break
+    print(f'{session_id} | running linear shift')
     shifts, blocks = get_linear_shifts(
         session_id=session_id, params=params
     )
+    print(f'got {shifts=}, {blocks=}')
     for shift in shifts:
         helper_linear_shift(
             session_id=session_id,
