@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import copy
-import io
 import os
+
 os.environ["RUST_BACKTRACE"] = "1"
 os.environ["POLARS_MAX_THREADS"] = "1"
 os.environ["TOKIO_WORKER_THREADS"] = "1"
@@ -21,42 +21,61 @@ import pathlib
 import pickle
 from typing import Annotated, Any, Iterable, Literal
 
-import dynamic_routing_analysis
-import lazynwb
 import polars as pl
 import pydantic
-import pydantic_settings
 import pydantic.functional_serializers
+import pydantic_settings
 import tqdm
 import upath
-from dynamic_routing_analysis import glm_utils, io_utils, datacube_utils
-
 import utils
+from dynamic_routing_analysis import datacube_utils, glm_utils, io_utils
 
 logger = logging.getLogger(__name__)
 
 # Required for serializing polars expressions
 Expr = Annotated[
-    pl.Expr, pydantic.functional_serializers.PlainSerializer(lambda expr: expr.meta.serialize(format='json'), return_type=str)
+    pl.Expr,
+    pydantic.functional_serializers.PlainSerializer(
+        lambda expr: expr.meta.serialize(format="json"), return_type=str
+    ),
 ]
 
-test_units = ['664851_2023-11-15_D-218', '664851_2023-11-15_B-239',
-       '686176_2023-12-07_B-508', '686176_2023-12-07_A-10',
-       '686176_2023-12-07_C-195', '686176_2023-12-07_C-578',
-       '686176_2023-12-07_C-549', '686176_2023-12-07_C-277',
-       '686176_2023-12-07_A-252', '686176_2023-12-07_E-110',
-       '703880_2024-04-15_E-39', '726088_2024-06-21_F-0',
-       '726088_2024-06-21_A-56', '726088_2024-06-21_E-148',
-       '726088_2024-06-21_F-41', '726088_2024-06-21_F-36',
-       '726088_2024-06-21_F-55', '726088_2024-06-21_F-77',
-       '726088_2024-06-21_F-186', '726088_2024-06-21_F-83',
-       '726088_2024-06-21_A-8', '726088_2024-06-21_A-5',
-       '726088_2024-06-21_A-124', '726088_2024-06-21_A-117',
-       '726088_2024-06-21_E-39', '726088_2024-06-21_E-252',
-       '726088_2024-06-21_E-102', '726088_2024-06-21_E-80',
-       '726088_2024-06-21_E-99', '726088_2024-06-21_E-273',
-       '742903_2024-10-22_E-1260', '742903_2024-10-22_F-193',
-       '742903_2024-10-22_C-205']
+test_units = [
+    "664851_2023-11-15_D-218",
+    "664851_2023-11-15_B-239",
+    "686176_2023-12-07_B-508",
+    "686176_2023-12-07_A-10",
+    "686176_2023-12-07_C-195",
+    "686176_2023-12-07_C-578",
+    "686176_2023-12-07_C-549",
+    "686176_2023-12-07_C-277",
+    "686176_2023-12-07_A-252",
+    "686176_2023-12-07_E-110",
+    "703880_2024-04-15_E-39",
+    "726088_2024-06-21_F-0",
+    "726088_2024-06-21_A-56",
+    "726088_2024-06-21_E-148",
+    "726088_2024-06-21_F-41",
+    "726088_2024-06-21_F-36",
+    "726088_2024-06-21_F-55",
+    "726088_2024-06-21_F-77",
+    "726088_2024-06-21_F-186",
+    "726088_2024-06-21_F-83",
+    "726088_2024-06-21_A-8",
+    "726088_2024-06-21_A-5",
+    "726088_2024-06-21_A-124",
+    "726088_2024-06-21_A-117",
+    "726088_2024-06-21_E-39",
+    "726088_2024-06-21_E-252",
+    "726088_2024-06-21_E-102",
+    "726088_2024-06-21_E-80",
+    "726088_2024-06-21_E-99",
+    "726088_2024-06-21_E-273",
+    "742903_2024-10-22_E-1260",
+    "742903_2024-10-22_F-193",
+    "742903_2024-10-22_C-205",
+]
+
 
 class Params(pydantic_settings.BaseSettings, extra="allow"):
     # ----------------------------------------------------------------------------------
@@ -66,7 +85,9 @@ class Params(pydantic_settings.BaseSettings, extra="allow"):
     # ----------------------------------------------------------------------------------
 
     # Capsule-specific parameters -------------------------------------- #
-    unit_ids_to_use: list[str] = pydantic.Field(default_factory=list, exclude=True, repr=True)
+    unit_ids_to_use: list[str] = pydantic.Field(
+        default_factory=list, exclude=True, repr=True
+    )
     single_session_id_to_use: str | None = pydantic.Field(None, exclude=True, repr=True)
     """If provided, only process this session_id. Otherwise, process all sessions that match the filtering criteria"""
     session_table_query: str = (
@@ -86,19 +107,17 @@ class Params(pydantic_settings.BaseSettings, extra="allow"):
     """For process pool"""
 
     # Run parameters that define a unique run (ie will be checked for 'skip_existing')
-    datacube_version: str = (
-        datacube_utils.get_datacube_version()
-    )
+    datacube_version: str = datacube_utils.get_datacube_version()
     time_of_interest: str = "full_trial"
     input_offsets: bool = True
     input_window_lengths: dict[str, float] = pydantic.Field(default_factory=dict)
-    
+
     # unit inclusion parameters ---------------------------------------- #
     presence_ratio: float | None = 0.7
     decoder_labels_to_exclude: list[str] = pydantic.Field(
         default_factory=lambda: ["noise"]
     )
-    
+
     spike_bin_width: float = 0.1
     """in seconds"""
     areas_to_include: list[str] = pydantic.Field(default_factory=list)
@@ -205,7 +224,7 @@ class Params(pydantic_settings.BaseSettings, extra="allow"):
     @property
     def unit_inclusion_criteria(self) -> Expr:
         exprs = []
-        exprs.append(pl.col('decoder_label') != 'noise')
+        exprs.append(pl.col("decoder_label") != "noise")
         if self.presence_ratio is not None:
             exprs.append(pl.col("presence_ratio") >= self.presence_ratio)
         if self.areas_to_include:
@@ -246,12 +265,17 @@ def regularization_coefficients_path(session_id: str) -> pathlib.Path:
 def get_regularization_coefficients(session_id: str, params: Params) -> dict[str, Any]:
     if regularization_coefficients_path(session_id).exists():
         return pickle.loads(regularization_coefficients_path(session_id).read_bytes())
-    
+
     elif get_s3_fullmodel_result_pickle_path(session_id, params).exists():
-        fit = pickle.loads(get_s3_fullmodel_result_pickle_path(session_id, params).read_bytes())['fit']
+        fit = pickle.loads(
+            get_s3_fullmodel_result_pickle_path(session_id, params).read_bytes()
+        )["fit"]
         return get_regularization_coef_dict_from_fit(fit)
     else:
-        raise FileNotFoundError(f"Could not find saved files (local or on S3) containing regularization coefficients for session {session_id}")
+        raise FileNotFoundError(
+            f"Could not find saved files (local or on S3) containing regularization coefficients for session {session_id}"
+        )
+
 
 def get_regularization_coef_dict_from_fit(fit):
     regularization_coef_dict = {}
@@ -276,62 +300,64 @@ def get_local_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]
     else:
         # doesn't exist, so create it
         data = generate_fullmodel_data(session_id, params)
-        
+
         # and save it
         local_fullmodel_data_path(session_id).write_bytes(pickle.dumps(data))
         if params.test:
             pathlib.Path(
-                    local_fullmodel_data_path(session_id)
-                    .as_posix()
-                    .replace("scratch", "results")
-                ).write_bytes(pickle.dumps(data))
+                local_fullmodel_data_path(session_id)
+                .as_posix()
+                .replace("scratch", "results")
+            ).write_bytes(pickle.dumps(data))
         return data
-    
+
+
 def generate_fullmodel_data(session_id, params):
-    print(f'{session_id} | getting units and behavior info via DRA')
-    lazy_units, behavior_info = io_utils.get_session_data_from_datacube(session_id, lazy=True, low_memory=True)
-    print('getting units table with lazynwb')
+    print(f"{session_id} | getting units and behavior info via DRA")
+    lazy_units, behavior_info = io_utils.get_session_data_from_datacube(
+        session_id, lazy=True, low_memory=True
+    )
+    print("getting units table with lazynwb")
     units_table = (
-            lazy_units
-            .filter(params.unit_inclusion_criteria)
-            .select('unit_id', 'spike_times', 'obs_intervals')
-            .collect()
-        )
+        lazy_units.filter(params.unit_inclusion_criteria)
+        .select("unit_id", "spike_times", "obs_intervals")
+        .collect()
+    )
     print(units_table.columns)
-    print(f'{session_id} | converting units_table to pandas')
+    print(f"{session_id} | converting units_table to pandas")
     units_table = units_table.to_pandas()
     if len(units_table) == 0:
         raise ValueError("No units meet the inclusion criteria — units_table is empty.")
     run_params = params.model_dump()
     run_params |= {
-                        "fullmodel_fitted": False,
-                        "model_label": "fullmodel",
-                        "project":  get_project(session_id),
-                    }
+        "fullmodel_fitted": False,
+        "model_label": "fullmodel",
+        "project": get_project(session_id),
+    }
     run_params = io_utils.define_kernels(run_params)
-
 
     fit: dict[str, Any] = {}
     fit = io_utils.establish_timebins(
-            run_params=run_params, fit=fit, behavior_info=behavior_info
-        )
+        run_params=run_params, fit=fit, behavior_info=behavior_info
+    )
     fit = io_utils.process_spikes(
-            units_table=units_table, run_params=run_params, fit=fit
-        )
+        units_table=units_table, run_params=run_params, fit=fit
+    )
     del units_table
     gc.collect()
 
     design: io_utils.DesignMatrix = io_utils.DesignMatrix(fit)
     design, fit = io_utils.add_kernels(
-            design=design,
-            run_params=run_params,
-            session=session_id,
-            fit=fit,
-            behavior_info=behavior_info,
-        )
+        design=design,
+        run_params=run_params,
+        session=session_id,
+        fit=fit,
+        behavior_info=behavior_info,
+    )
     logger.info("")
     design_matrix = design.get_X()
     return {"fit": fit, "design_matrix": design_matrix, "run_params": run_params}
+
 
 def get_s3_fullmodel_result_pickle_path(session_id: str, params: Params):
     return params.pkl_data_dir / f"{session_id}.pkl"
@@ -345,10 +371,15 @@ def get_project(session_id: str) -> str:
 
 def helper_fullmodel(session_id: str, params: Params) -> None:
     model_label = "fullmodel"
-    if params.skip_existing and get_parquet_path(session_id=session_id, params=params, model_label=model_label).exists():
-        print(f'{session_id} | skipping fullmodel helper')
+    if (
+        params.skip_existing
+        and get_parquet_path(
+            session_id=session_id, params=params, model_label=model_label
+        ).exists()
+    ):
+        print(f"{session_id} | skipping fullmodel helper")
         return
-    print(f'{session_id} | running fullmodel helper')
+    print(f"{session_id} | running fullmodel helper")
     data = get_local_fullmodel_data(session_id=session_id, params=params)
     run_params = data["run_params"]
     run_params |= {
@@ -370,7 +401,7 @@ def helper_fullmodel(session_id: str, params: Params) -> None:
 def get_features_to_drop(session_id: str, params: Params) -> list[str]:
     if params.features_to_drop:
         return params.features_to_drop
-    run_params = get_partial_fullmodel_data_local_or_s3(session_id, params)['run_params']
+    run_params = get_fullmodel_pkl_local_or_s3(session_id, params)["run_params"]
     features_to_drop = list(run_params["input_variables"]) + [
         run_params["kernels"][key]["function_call"]
         for key in run_params["input_variables"]
@@ -380,8 +411,13 @@ def get_features_to_drop(session_id: str, params: Params) -> list[str]:
 
 def helper_dropout(session_id: str, params: Params, feature_to_drop: str) -> None:
     model_label = f"drop_{feature_to_drop}"
-    if params.skip_existing and get_parquet_path(session_id=session_id, params=params, model_label=model_label).exists():
-        print(f'{session_id} | skipping dropout helper {feature_to_drop}')
+    if (
+        params.skip_existing
+        and get_parquet_path(
+            session_id=session_id, params=params, model_label=model_label
+        ).exists()
+    ):
+        print(f"{session_id} | skipping dropout helper {feature_to_drop}")
         return
     data = get_local_fullmodel_data(session_id=session_id, params=params)
     run_params = data["run_params"]
@@ -407,8 +443,13 @@ def helper_linear_shift(
     shift_columns: list[int],
 ) -> None:
     model_label = f"shift_{shift}"
-    if params.skip_existing and get_parquet_path(session_id=session_id, params=params, model_label=model_label).exists():
-        print(f'{session_id} | skipping shift helper {shift}')
+    if (
+        params.skip_existing
+        and get_parquet_path(
+            session_id=session_id, params=params, model_label=model_label
+        ).exists()
+    ):
+        print(f"{session_id} | skipping shift helper {shift}")
         return
     data = get_local_fullmodel_data(session_id=session_id, params=params)
     run_params = data["run_params"]
@@ -427,36 +468,50 @@ def helper_linear_shift(
     save_results(session_id=session_id, fit=fit, run_params=run_params, params=params)
 
 
-
-def get_partial_fullmodel_data_local_or_s3(session_id: str, params: Params) -> dict[str, dict]:
-    if local_fullmodel_data_path(session_id).exists():
+def get_fullmodel_pkl_local_or_s3(
+    session_id: str, params: Params
+) -> dict[str, dict]:
+    """Watch out: returned dict does not design matrix if from S3, and fit does not contain results
+    if from local"""
+    if local_fullmodel_data_path(session_id).exists():  # fit does not contain results
         data = get_local_fullmodel_data(session_id=session_id, params=params)
-    elif get_s3_fullmodel_result_pickle_path(session_id, params).exists():
-        data = pickle.loads(get_s3_fullmodel_result_pickle_path(session_id, params).read_bytes())
+    elif get_s3_fullmodel_result_pickle_path(
+        session_id, params
+    ).exists():  # data does not contain design matrix
+        data = pickle.loads(
+            get_s3_fullmodel_result_pickle_path(session_id, params).read_bytes()
+        )
     else:
-        raise FileNotFoundError(f"Could not find saved files (local or on S3) containing fit/run_params for session {session_id}")
+        raise FileNotFoundError(
+            f"Could not find saved files (local or on S3) containing fit/run_params for session {session_id}"
+        )
     return data
 
+
 def get_shift_columns(session_id: str, params: Params) -> list[int]:
-    data = get_partial_fullmodel_data_local_or_s3(session_id=session_id, params=params)
+    
+    data = get_fullmodel_pkl_local_or_s3(session_id=session_id, params=params)
+    if "design_matrix" in data:
+        weight_labels = data["design_matrix"].coords["weights"].data  # type: ignore
+    else:
+        weight_labels = data["fit"]["fullmodel"]["weight_labels"]
     return [
         i
-        for i, label in enumerate(
-            data['fit']['fullmodel']['weight_labels'] # type: ignore
-        )
+        for i, label in enumerate(weight_labels)  # type: ignore
         if any([key in label for key in params.linear_shift_variables])
     ]
+
 
 def get_linear_shifts(
     session_id: str, params: Params
 ) -> tuple[Iterable[int], Iterable[int]]:
-    data = get_partial_fullmodel_data_local_or_s3(session_id=session_id, params=params)
-    if 'design_matrix' in data:
-        context = data["design_matrix"].sel(weights="context_0").data # type: ignore
+    data = get_fullmodel_pkl_local_or_s3(session_id=session_id, params=params)
+    if "design_matrix" in data:
+        context = data["design_matrix"].sel(weights="context_0").data  # type: ignore
     else:
         # make a spoofed design matrix to get the context regressor (but without binned spike counts)
         run_params_for_context = copy.deepcopy(data["run_params"])
-        run_params_for_context['input_variables'] = ['context']
+        run_params_for_context["input_variables"] = ["context"]
         run_params_for_context = io_utils.define_kernels(run_params_for_context)
         design_matrix_for_context = io_utils.DesignMatrix(data["fit"])
         design_matrix_for_context, _ = io_utils.add_kernels(
@@ -468,7 +523,7 @@ def get_linear_shifts(
         )
         context = design_matrix_for_context.get_X()
     return glm_utils.get_shift_bins(
-        run_params=params.model_dump(), # type: ignore
+        run_params=params.model_dump(),  # type: ignore
         fit=data["fit"],
         context=context,
     )
@@ -480,6 +535,7 @@ def get_parquet_path(session_id: str, params: Params, model_label: str) -> upath
         / params.results_folder_name
         / f"{session_id}_{model_label}.parquet"
     )
+
 
 def save_results(
     session_id: str, fit: dict[str, Any], params: Params, run_params: dict[str, Any]
@@ -513,7 +569,7 @@ def save_results(
     parquet_path = get_parquet_path(
         session_id=session_id,
         params=params,
-        model_label=run_params['model_label'],
+        model_label=run_params["model_label"],
     )
     logger.info(f"Writing results to {parquet_path}")
     (
@@ -527,7 +583,7 @@ def save_results(
                 "weights": fit[run_params["model_label"]]["weights"].T.tolist(),
                 "dropped_variable": dropped_variable,
                 "shift_index": shift_index,
-                "model_label": model_label.split('_')[0],
+                "model_label": model_label.split("_")[0],
             },
             schema_overrides={
                 "shift_index": pl.Int32,
@@ -607,7 +663,9 @@ def run_encoding(
                             feature_to_drop=feature_to_drop,
                         )
                         if params.test:
-                            logger.info("Test mode: exiting after first feature dropout")
+                            logger.info(
+                                "Test mode: exiting after first feature dropout"
+                            )
                             break
                     shifts, blocks = get_linear_shifts(
                         session_id=session_id, params=params
