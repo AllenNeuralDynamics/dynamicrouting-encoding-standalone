@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 import os
 
 os.environ["RUST_BACKTRACE"] = "1"
@@ -13,7 +12,9 @@ os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
 import concurrent.futures as cf
+import copy
 import datetime
+import functools
 import gc
 import logging
 import multiprocessing
@@ -595,6 +596,37 @@ def save_results(
         )
     )
 
+def run_after_full_model(future: cf.Future, session_id: str, params: Params) -> None:
+    for feature_to_drop in get_features_to_drop(
+        session_id=session_id, params=params
+    ):
+        helper_dropout(
+            session_id=session_id,
+            params=params,
+            feature_to_drop=feature_to_drop,
+        )
+        if params.test:
+            logger.info(
+                "Test mode: exiting after first feature dropout"
+            )
+            break
+    shifts, blocks = get_linear_shifts(
+        session_id=session_id, params=params
+    )
+    for shift in shifts:
+        helper_linear_shift(
+            session_id=session_id,
+            params=params,
+            shift=shift,
+            blocks=blocks,
+            shift_columns=get_shift_columns(
+                session_id=session_id, params=params
+            ),
+        )
+        if params.test:
+            logger.info("Test mode: exiting after first shift")
+            break
+
 
 def run_encoding(
     session_ids: str | Iterable[str],
@@ -652,38 +684,13 @@ def run_encoding(
                     params=params,
                 )
 
-                def run_after_full_model(future: cf.Future) -> None:
-                    for feature_to_drop in get_features_to_drop(
-                        session_id=session_id, params=params
-                    ):
-                        helper_dropout(
-                            session_id=session_id,
-                            params=params,
-                            feature_to_drop=feature_to_drop,
+                future.add_done_callback(
+                    functools.partial(
+                        run_after_full_model,
+                        session_id=session_id,
+                        params=params,
                         )
-                        if params.test:
-                            logger.info(
-                                "Test mode: exiting after first feature dropout"
-                            )
-                            break
-                    shifts, blocks = get_linear_shifts(
-                        session_id=session_id, params=params
-                    )
-                    for shift in shifts:
-                        helper_linear_shift(
-                            session_id=session_id,
-                            params=params,
-                            shift=shift,
-                            blocks=blocks,
-                            shift_columns=get_shift_columns(
-                                session_id=session_id, params=params
-                            ),
-                        )
-                        if params.test:
-                            logger.info("Test mode: exiting after first shift")
-                            break
-
-                future.add_done_callback(run_after_full_model)
+                )
 
                 future_to_session[future] = session_id
                 logger.debug(
