@@ -596,7 +596,7 @@ def save_results(
         )
     )
 
-def run_after_full_model(future: cf.Future, session_id: str, params: Params) -> None:
+def run_after_full_model(session_id: str, params: Params) -> None:
     for feature_to_drop in get_features_to_drop(
         session_id=session_id, params=params
     ):
@@ -644,31 +644,7 @@ def run_encoding(
         ):
             logger.info(f"Processing session {session_id}")
             helper_fullmodel(session_id=session_id, params=params)
-            for feature_to_drop in get_features_to_drop(
-                session_id=session_id, params=params
-            ):
-                helper_dropout(
-                    session_id=session_id,
-                    params=params,
-                    feature_to_drop=feature_to_drop,
-                )
-                if params.test:
-                    logger.info("Test mode: exiting after first feature dropout")
-                    break
-            shifts, blocks = get_linear_shifts(session_id=session_id, params=params)
-            for shift in shifts:
-                helper_linear_shift(
-                    session_id=session_id,
-                    params=params,
-                    shift=shift,
-                    blocks=blocks,
-                    shift_columns=get_shift_columns(
-                        session_id=session_id, params=params
-                    ),
-                )
-                if params.test:
-                    logger.info("Test mode: exiting after first shift")
-                    break
+            run_after_full_model(session_id=session_id, params=params)
 
     else:
         future_to_session: dict[cf.Future, str] = {}
@@ -684,12 +660,18 @@ def run_encoding(
                     params=params,
                 )
 
+                def schedule_more_jobs(future: cf.Future, session_id: str, params: Params, executor: cf.ProcessPoolExecutor) -> None:
+                    #! don't do closure on session_id/params
+                    _ = future # future must be first arg, but isn't needed
+                    executor.submit(run_after_full_model, session_id=session_id, params=params)
+        
                 future.add_done_callback(
                     functools.partial(
-                        run_after_full_model,
+                        schedule_more_jobs,
                         session_id=session_id,
                         params=params,
-                        )
+                        executor=executor,
+                    )
                 )
 
                 future_to_session[future] = session_id
