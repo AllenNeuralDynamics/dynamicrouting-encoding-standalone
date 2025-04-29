@@ -543,7 +543,6 @@ def save_results(
     fit.pop("timebins_all", None)
     fit.pop("bin_centers_all", None)
     fit.pop("epoch_trace_all", None)
-    fit.pop("mask", None)
     fit["spike_count_arr"].pop("spike_counts", None)
     if run_params["model_label"] == "fullmodel":
         pkl_path = get_s3_fullmodel_result_pickle_path(session_id, params)
