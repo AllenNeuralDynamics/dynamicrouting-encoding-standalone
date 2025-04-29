@@ -354,7 +354,7 @@ def generate_fullmodel_data(session_id, params):
         fit=fit,
         behavior_info=behavior_info,
     )
-    logger.info("")
+
     design_matrix = design.get_X()
     return {"fit": fit, "design_matrix": design_matrix, "run_params": run_params}
 
