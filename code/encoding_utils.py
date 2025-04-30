@@ -8,8 +8,11 @@ os.environ["TOKIO_WORKER_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["RAYON_NUM_THREADS"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OMP_THREAD_LIMIT"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["MALLOC_CONF"] = "background_thread:false"
 
 import concurrent.futures as cf
 import copy
@@ -20,6 +23,7 @@ import logging
 import multiprocessing
 import pathlib
 import pickle
+import time
 from typing import Annotated, Any, Iterable, Literal
 
 import polars as pl
@@ -587,6 +591,10 @@ def save_results(
             schema_overrides={
                 "shift_index": pl.Int32,
                 "dropped_variable": pl.String,
+                #"model_label": pl.Enum(['fullmodel', 'drop', 'shift']),
+                #"project": pl.Enum(['DynamicRouting', 'Templeton']),
+                #"model_label": pl.Enum(['fullmodel', 'drop', 'shift']),
+                #"dropped_variable": pl.Enum(['running', 'miss', 'sound1', 'context', 'vis2', 'licks', 'session_time', 'correct_reject', 'nose', 'stimulus', 'jaw', 'false_alarm', 'ears', 'choice', 'whisker_pad', 'sound2', 'facial_features', 'pupil', 'vis1', 'hit']),
             },
         ).write_parquet(
             parquet_path.as_posix(),
@@ -596,10 +604,11 @@ def save_results(
     )
 
 def run_after_full_model(session_id: str, params: Params) -> None:
-    print(f'{session_id} | running after full model')
+    print(f'{session_id} | running drop features after full model')
     for feature_to_drop in get_features_to_drop(
         session_id=session_id, params=params
     ):
+        print(f'{session_id} | {feature_to_drop=}')
         helper_dropout(
             session_id=session_id,
             params=params,
@@ -610,12 +619,14 @@ def run_after_full_model(session_id: str, params: Params) -> None:
                 "Test mode: exiting after first feature dropout"
             )
             break
+    # print('TEST exiting before linear shifts')
+    # return
     print(f'{session_id} | running linear shift')
     shifts, blocks = get_linear_shifts(
         session_id=session_id, params=params
     )
-    print(f'got {shifts=}, {blocks=}')
     for shift in shifts:
+        print(f'{session_id} | {shift=}')
         helper_linear_shift(
             session_id=session_id,
             params=params,

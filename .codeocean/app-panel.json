@@ -71,6 +71,14 @@
 			"type": "text",
 			"value_type": "string",
 			"default_value": "{\"time_of_interest\": \"full_trial\"}"
+		},
+		{
+			"id": "h9LDv02O16WScWwt",
+			"name": "use_process_pool",
+			"param_name": "use_process_pool",
+			"type": "text",
+			"value_type": "string",
+			"default_value": "True"
 		}
 	]
 }
