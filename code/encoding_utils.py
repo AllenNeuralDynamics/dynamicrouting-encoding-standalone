@@ -583,7 +583,7 @@ def save_results(
                 "project": get_project(session_id),
                 "cv_test": fit[run_params["model_label"]]["cv_var_test"],
                 "cv_train": fit[run_params["model_label"]]["cv_var_train"],
-                "weights": fit[run_params["model_label"]]["weights"].T.tolist(),
+                "weights": None if run_params["model_label"].startswith("shift") else fit[run_params["model_label"]]["weights"].T.tolist() ,
                 "dropped_variable": dropped_variable,
                 "shift_index": shift_index,
                 "model_label": model_label.split("_")[0],
