@@ -676,7 +676,12 @@ def run_encoding(
                 def schedule_more_jobs(future: cf.Future, session_id: str, params: Params, executor: cf.ProcessPoolExecutor) -> None:
                     #! don't do closure on session_id/params
                     _ = future # future must be first arg, but isn't needed
-                    executor.submit(run_after_full_model, session_id=session_id, params=params)
+                    future = executor.submit(run_after_full_model, session_id=session_id, params=params)
+                    for future in cf.as_completed([future]):
+                        try:
+                            _ = future.result()
+                        except Exception:
+                            logger.exception(f"{session_id} | Failed:")
         
                 future.add_done_callback(
                     functools.partial(
