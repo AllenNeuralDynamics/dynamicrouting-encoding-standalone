@@ -14,7 +14,9 @@ os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["MALLOC_CONF"] = "background_thread:false"
 
+import _thread
 import concurrent.futures as cf
+import contextlib
 import copy
 import datetime
 import functools
@@ -23,7 +25,6 @@ import logging
 import multiprocessing
 import pathlib
 import pickle
-import time
 from typing import Annotated, Any, Iterable, Literal
 
 import polars as pl
@@ -295,7 +296,9 @@ def local_fullmodel_data_path(session_id: str) -> pathlib.Path:
     return pathlib.Path(f"/scratch/{session_id}.pkl")
 
 
-def get_local_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]:
+def get_local_fullmodel_data(
+    session_id: str, params: Params, lock: _thread.LockType | None = None
+) -> dict[str, dict]:
     """Equivalent to reading the 'inputs.npz' file in the pipeline.
     If it doesn't exist, it will be created.
     """
@@ -304,7 +307,7 @@ def get_local_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]
         return data
     else:
         # doesn't exist, so create it
-        data = generate_fullmodel_data(session_id, params)
+        data = generate_fullmodel_data(session_id, params, lock=lock)
 
         # and save it
         local_fullmodel_data_path(session_id).write_bytes(pickle.dumps(data))
@@ -317,20 +320,26 @@ def get_local_fullmodel_data(session_id: str, params: Params) -> dict[str, dict]
         return data
 
 
-def generate_fullmodel_data(session_id, params):
+def generate_fullmodel_data(session_id, params, lock: _thread.LockType | None = None):
     print(f"{session_id} | getting units and behavior info via DRA")
-    lazy_units, behavior_info = io_utils.get_session_data_from_datacube(
-        session_id, lazy=True, low_memory=True
-    )
-    print("getting units table with lazynwb")
-    units_table = (
-        lazy_units.filter(params.unit_inclusion_criteria)
-        .select("unit_id", "spike_times", "obs_intervals")
-        .collect()
-    )
-    print(units_table.columns)
-    print(f"{session_id} | converting units_table to pandas")
-    units_table = units_table.to_pandas()
+    if lock is None:
+        lock = contextlib.nullcontext()  # type: ignore[assignment]
+    assert lock is not None
+
+    print(f"{session_id} | acquiring lock to get units and behavior info")
+    with lock:
+        lazy_units, behavior_info = io_utils.get_session_data_from_datacube(
+            session_id, lazy=True, low_memory=True
+        )
+        print("getting units table with lazynwb")
+        units_table = (
+            lazy_units.filter(params.unit_inclusion_criteria)
+            .select("unit_id", "spike_times", "obs_intervals")
+            .collect()
+        )
+        print(units_table.columns)
+        print(f"{session_id} | converting units_table to pandas")
+        units_table = units_table.to_pandas()
     if len(units_table) == 0:
         raise ValueError("No units meet the inclusion criteria — units_table is empty.")
     run_params = params.model_dump()
@@ -374,7 +383,9 @@ def get_project(session_id: str) -> str:
     ][0]
 
 
-def helper_fullmodel(session_id: str, params: Params) -> None:
+def helper_fullmodel(
+    session_id: str, params: Params, lock: _thread.LockType | None = None
+) -> None:
     model_label = "fullmodel"
     if (
         params.skip_existing
@@ -385,7 +396,7 @@ def helper_fullmodel(session_id: str, params: Params) -> None:
         print(f"{session_id} | skipping fullmodel helper")
         return
     print(f"{session_id} | running fullmodel helper")
-    data = get_local_fullmodel_data(session_id=session_id, params=params)
+    data = get_local_fullmodel_data(session_id=session_id, params=params, lock=lock)
     run_params = data["run_params"]
     run_params |= {
         "fullmodel_fitted": False,
@@ -414,7 +425,12 @@ def get_features_to_drop(session_id: str, params: Params) -> list[str]:
     return sorted(set(features_to_drop))
 
 
-def helper_dropout(session_id: str, params: Params, feature_to_drop: str) -> None:
+def helper_dropout(
+    session_id: str,
+    params: Params,
+    feature_to_drop: str,
+    lock: _thread.LockType | None = None,
+) -> None:
     model_label = f"drop_{feature_to_drop}"
     if (
         params.skip_existing
@@ -424,7 +440,7 @@ def helper_dropout(session_id: str, params: Params, feature_to_drop: str) -> Non
     ):
         print(f"{session_id} | skipping dropout helper {feature_to_drop}")
         return
-    data = get_local_fullmodel_data(session_id=session_id, params=params)
+    data = get_local_fullmodel_data(session_id=session_id, params=params, lock=lock)
     run_params = data["run_params"]
     run_params |= {
         "drop_variables": [feature_to_drop],
@@ -446,6 +462,7 @@ def helper_linear_shift(
     shift: int,
     blocks: Iterable[int],
     shift_columns: list[int],
+    lock: _thread.LockType | None = None,
 ) -> None:
     model_label = f"shift_{shift}"
     if (
@@ -456,7 +473,7 @@ def helper_linear_shift(
     ):
         print(f"{session_id} | skipping shift helper {shift}")
         return
-    data = get_local_fullmodel_data(session_id=session_id, params=params)
+    data = get_local_fullmodel_data(session_id=session_id, params=params, lock=lock)
     run_params = data["run_params"]
     run_params |= {
         "fullmodel_fitted": params.reuse_regularization_coefficients,
@@ -473,9 +490,7 @@ def helper_linear_shift(
     save_results(session_id=session_id, fit=fit, run_params=run_params, params=params)
 
 
-def get_fullmodel_pkl_local_or_s3(
-    session_id: str, params: Params
-) -> dict[str, dict]:
+def get_fullmodel_pkl_local_or_s3(session_id: str, params: Params) -> dict[str, dict]:
     """Watch out: returned dict does not design matrix if from S3, and fit does not contain results
     if from local"""
     if local_fullmodel_data_path(session_id).exists():  # fit does not contain results
@@ -494,7 +509,7 @@ def get_fullmodel_pkl_local_or_s3(
 
 
 def get_shift_columns(session_id: str, params: Params) -> list[int]:
-    
+
     data = get_fullmodel_pkl_local_or_s3(session_id=session_id, params=params)
     if "design_matrix" in data:
         weight_labels = data["design_matrix"].coords["weights"].data  # type: ignore
@@ -516,11 +531,11 @@ def get_linear_shifts(
     else:
         # make a spoofed design matrix to get the context regressor (but without binned spike counts)
         run_params_for_context = copy.deepcopy(data["run_params"])
-        run_params_for_context["input_variables"] = ['context']
+        run_params_for_context["input_variables"] = ["context"]
         run_params_for_context = io_utils.define_kernels(run_params_for_context)
 
         design_matrix_for_context = io_utils.DesignMatrix(data["fit"])
-        
+
         design_matrix_for_context, _ = io_utils.add_kernels(
             design=design_matrix_for_context,
             run_params=run_params_for_context,
@@ -583,7 +598,11 @@ def save_results(
                 "project": get_project(session_id),
                 "cv_test": fit[run_params["model_label"]]["cv_var_test"],
                 "cv_train": fit[run_params["model_label"]]["cv_var_train"],
-                "weights": None if run_params["model_label"].startswith("shift") else fit[run_params["model_label"]]["weights"].T.tolist() ,
+                "weights": (
+                    None
+                    if run_params["model_label"].startswith("shift")
+                    else fit[run_params["model_label"]]["weights"].T.tolist()
+                ),
                 "dropped_variable": dropped_variable,
                 "shift_index": shift_index,
                 "model_label": model_label.split("_")[0],
@@ -591,10 +610,10 @@ def save_results(
             schema_overrides={
                 "shift_index": pl.Int32,
                 "dropped_variable": pl.String,
-                #"model_label": pl.Enum(['fullmodel', 'drop', 'shift']),
-                #"project": pl.Enum(['DynamicRouting', 'Templeton']),
-                #"model_label": pl.Enum(['fullmodel', 'drop', 'shift']),
-                #"dropped_variable": pl.Enum(['running', 'miss', 'sound1', 'context', 'vis2', 'licks', 'session_time', 'correct_reject', 'nose', 'stimulus', 'jaw', 'false_alarm', 'ears', 'choice', 'whisker_pad', 'sound2', 'facial_features', 'pupil', 'vis1', 'hit']),
+                # "model_label": pl.Enum(['fullmodel', 'drop', 'shift']),
+                # "project": pl.Enum(['DynamicRouting', 'Templeton']),
+                # "model_label": pl.Enum(['fullmodel', 'drop', 'shift']),
+                # "dropped_variable": pl.Enum(['running', 'miss', 'sound1', 'context', 'vis2', 'licks', 'session_time', 'correct_reject', 'nose', 'stimulus', 'jaw', 'false_alarm', 'ears', 'choice', 'whisker_pad', 'sound2', 'facial_features', 'pupil', 'vis1', 'hit']),
             },
         ).write_parquet(
             parquet_path.as_posix(),
@@ -603,38 +622,35 @@ def save_results(
         )
     )
 
-def run_after_full_model(session_id: str, params: Params) -> None:
-    print(f'{session_id} | running drop features after full model')
-    for feature_to_drop in get_features_to_drop(
-        session_id=session_id, params=params
-    ):
-        print(f'{session_id} | {feature_to_drop=}')
+
+def run_after_full_model(
+    session_id: str, params: Params, lock: _thread.LockType | None = None
+) -> None:
+    print(f"{session_id} | running drop features after full model")
+    for feature_to_drop in get_features_to_drop(session_id=session_id, params=params):
+        print(f"{session_id} | {feature_to_drop=}")
         helper_dropout(
             session_id=session_id,
             params=params,
             feature_to_drop=feature_to_drop,
+            lock=lock,
         )
         if params.test:
-            logger.info(
-                "Test mode: exiting after first feature dropout"
-            )
+            logger.info("Test mode: exiting after first feature dropout")
             break
     # print('TEST exiting before linear shifts')
     # return
-    print(f'{session_id} | running linear shift')
-    shifts, blocks = get_linear_shifts(
-        session_id=session_id, params=params
-    )
+    print(f"{session_id} | running linear shift")
+    shifts, blocks = get_linear_shifts(session_id=session_id, params=params)
     for shift in shifts:
-        print(f'{session_id} | {shift=}')
+        print(f"{session_id} | {shift=}")
         helper_linear_shift(
             session_id=session_id,
             params=params,
             shift=shift,
             blocks=blocks,
-            shift_columns=get_shift_columns(
-                session_id=session_id, params=params
-            ),
+            shift_columns=get_shift_columns(session_id=session_id, params=params),
+            lock=lock,
         )
         if params.test:
             logger.info("Test mode: exiting after first shift")
@@ -661,7 +677,7 @@ def run_encoding(
 
     else:
         future_to_session: dict[cf.Future, str] = {}
-        lock = None  # multiprocessing.Manager().Lock() # or None
+        lock = multiprocessing.Manager().Lock()  # or None
         with cf.ProcessPoolExecutor(
             max_workers=params.max_workers,
             mp_context=multiprocessing.get_context("spawn"),
@@ -671,18 +687,29 @@ def run_encoding(
                     helper_fullmodel,
                     session_id=session_id,
                     params=params,
+                    lock=lock,
                 )
 
-                def schedule_more_jobs(future: cf.Future, session_id: str, params: Params, executor: cf.ProcessPoolExecutor) -> None:
+                def schedule_more_jobs(
+                    future: cf.Future,
+                    session_id: str,
+                    params: Params,
+                    executor: cf.ProcessPoolExecutor,
+                ) -> None:
                     #! don't do closure on session_id/params
-                    _ = future # future must be first arg, but isn't needed
-                    future = executor.submit(run_after_full_model, session_id=session_id, params=params)
+                    _ = future  # future must be first arg, but isn't needed
+                    future = executor.submit(
+                        run_after_full_model,
+                        session_id=session_id,
+                        params=params,
+                        lock=lock,
+                    )
                     for future in cf.as_completed([future]):
                         try:
                             _ = future.result()
                         except Exception:
                             logger.exception(f"{session_id} | Failed:")
-        
+
                 future.add_done_callback(
                     functools.partial(
                         schedule_more_jobs,
