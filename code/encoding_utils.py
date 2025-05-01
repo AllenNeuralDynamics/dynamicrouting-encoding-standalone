@@ -698,6 +698,7 @@ def run_encoding(
                     session_id: str,
                     params: Params,
                     executor: cf.ProcessPoolExecutor,
+                    lock: _thread.LockType | None = None,
                 ) -> None:
                     #! don't do closure on session_id/params
                     _ = future  # future must be first arg, but isn't needed
