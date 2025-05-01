@@ -532,6 +532,7 @@ def get_linear_shifts(
         # make a spoofed design matrix to get the context regressor (but without binned spike counts)
         run_params_for_context = copy.deepcopy(data["run_params"])
         run_params_for_context["input_variables"] = ["context"]
+        run_params_for_context["intercept"] = False
         run_params_for_context = io_utils.define_kernels(run_params_for_context)
 
         design_matrix_for_context = io_utils.DesignMatrix(data["fit"])
@@ -543,7 +544,7 @@ def get_linear_shifts(
             fit=data["fit"],
             behavior_info=io_utils.get_session_data_from_datacube(session_id)[1],
         )
-        context = design_matrix_for_context.get_X()
+        context = design_matrix_for_context.get_X().data.flatten()
     return glm_utils.get_shift_bins(
         run_params=params.model_dump(),  # type: ignore
         fit=data["fit"],
@@ -640,8 +641,8 @@ def run_after_full_model(
         if params.test:
             logger.info("Test mode: exiting after first feature dropout")
             break
-    print('TEST exiting before linear shifts')
-    return
+    # print('TEST exiting before linear shifts')
+    # return
     print(f"{session_id} | running linear shift")
     shifts, blocks = get_linear_shifts(session_id=session_id, params=params)
     for shift in shifts:
