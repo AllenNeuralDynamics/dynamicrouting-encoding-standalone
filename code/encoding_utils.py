@@ -514,7 +514,7 @@ def get_shift_columns(session_id: str, params: Params) -> list[int]:
     if "design_matrix" in data:
         weight_labels = data["design_matrix"].coords["weights"].data  # type: ignore
     else:
-        weight_labels = data["fit"]["fullmodel"]["weight_labels"]
+        weight_labels = data["fit"]["fullmodel"]["weight_label"]
     return [
         i
         for i, label in enumerate(weight_labels)  # type: ignore
