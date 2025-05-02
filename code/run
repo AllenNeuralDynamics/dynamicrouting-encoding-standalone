@@ -1,6 +1,23 @@
 #!/usr/bin/env bash
 set -ex
 
+# set env vars when running explicit multiprocessing:
+if [[ "$@" =~ "--use_process_pool=1" || "$@" =~ "--use_process_pool=True" || "$@" =~ "--use_process_pool=true"  || "$@" =~ "--session_id"]]; then
+echo Setting env vars for Python-coordinated multiprocessing
+export RUST_BACKTRACE=full
+export POLARS_MAX_THREADS=1
+export TOKIO_WORKER_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export RAYON_NUM_THREADS=1
+export OMP_NUM_THREADS=1
+export OMP_THREAD_LIMIT=1
+export MKL_NUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
+export VECLIB_MAXIMUM_THREADS=1
+export MALLOC_CONF=background_thread:false
+fi
+
+
 # Use the following to always install the latest version of a package from source:
 # --------------------------------------------------------------------------------
 if [[ "$@" =~ "--update_packages_from_source=1" ]]; then
