@@ -2,7 +2,7 @@
 set -ex
 
 # set env vars when running explicit multiprocessing:
-if [[ "$@" =~ "--use_process_pool=1" || "$@" =~ "--use_process_pool=True" || "$@" =~ "--use_process_pool=true"  || "$@" =~ "--session_id"]]; then
+if [[ "$@" =~ "--use_process_pool=1" || "$@" =~ "--use_process_pool=True" || "$@" =~ "--use_process_pool=true" ]]; then
 echo Setting env vars for Python-coordinated multiprocessing
 export RUST_BACKTRACE=full
 export POLARS_MAX_THREADS=1

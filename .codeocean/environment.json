@@ -28,49 +28,15 @@
 				},
 				{
 					"name": "git+https://github.com/AllenInstitute/dynamic_routing_analysis#egg=dynamic-routing-analysis",
-					"version": "a99c240342700e1ed4e61c617041d5ade6a5b3dc"
+					"version": "e64e10038f0b17103da5094e18100c8e48e7d460"
 				},
 				{
 					"name": "lazynwb",
-					"version": "0.2.39"
+					"version": "0.2.40"
 				}
 			],
 			"options": {},
 			"pre_install_options": {}
 		}
-	},
-	"env_variables": [
-		{
-			"name": "POLARS_MAX_THREADS",
-			"value": "1"
-		},
-		{
-			"name": "TOKIO_WORKER_THREADS",
-			"value": "1"
-		},
-		{
-			"name": "OPENBLAS_NUM_THREADS",
-			"value": "1"
-		},
-		{
-			"name": "RAYON_NUM_THREADS",
-			"value": "1"
-		},
-		{
-			"name": "OMP_NUM_THREADS",
-			"value": "1"
-		},
-		{
-			"name": "MKL_NUM_THREADS",
-			"value": "1"
-		},
-		{
-			"name": "NUMEXPR_NUM_THREADS",
-			"value": "1"
-		},
-		{
-			"name": "VECLIB_MAXIMUM_THREADS",
-			"value": "1"
-		}
-	]
+	}
 }
