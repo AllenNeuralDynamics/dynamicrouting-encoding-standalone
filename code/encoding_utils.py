@@ -27,6 +27,7 @@ import pathlib
 import pickle
 from typing import Annotated, Any, Iterable, Literal
 
+import lazynwb
 import polars as pl
 import pydantic
 import pydantic.functional_serializers
@@ -328,15 +329,26 @@ def generate_fullmodel_data(session_id, params, lock: _thread.LockType | None = 
 
     print(f"{session_id} | acquiring lock to get units and behavior info")
     with lock:
+        lazy = False
         lazy_units, behavior_info = io_utils.get_session_data_from_datacube(
-            session_id, lazy=True, low_memory=True
+            session_id, lazy=lazy, low_memory=True
         )
         print("getting units table with lazynwb")
-        units_table = (
-            lazy_units.filter(params.unit_inclusion_criteria)
-            .select("unit_id", "spike_times", "obs_intervals")
-            .collect()
-        )
+        if lazy:
+            units_table = (
+                lazy_units
+                .filter(params.unit_inclusion_criteria)
+                .select("unit_id", "spike_times", "obs_intervals")
+                .collect()
+            )
+        else:
+            units_table = (
+                lazy_units
+                .filter(params.unit_inclusion_criteria)
+                .pipe(lazynwb.merge_array_column, 'spike_times')
+                .pipe(lazynwb.merge_array_column, 'obs_intervals')
+                .select("unit_id", "spike_times", "obs_intervals")
+            )
         print(units_table.columns)
         print(f"{session_id} | converting units_table to pandas")
         units_table = units_table.to_pandas()
@@ -641,8 +653,8 @@ def run_after_full_model(
         if params.test:
             logger.info("Test mode: exiting after first feature dropout")
             break
-    # print('TEST exiting before linear shifts')
-    # return
+    print('TEST exiting before linear shifts')
+    return
     print(f"{session_id} | running linear shift")
     shifts, blocks = get_linear_shifts(session_id=session_id, params=params)
     for shift in shifts:
@@ -680,7 +692,7 @@ def run_encoding(
 
     else:
         future_to_session: dict[cf.Future, str] = {}
-        lock = multiprocessing.Manager().Lock()  # or None
+        lock = None # multiprocessing.Manager().Lock()  # or None
         with cf.ProcessPoolExecutor(
             max_workers=params.max_workers,
             mp_context=multiprocessing.get_context("spawn"),
