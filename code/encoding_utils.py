@@ -331,7 +331,9 @@ def generate_fullmodel_data(session_id, params, lock: _thread.LockType | None = 
     with lock:
         lazy = False
         lazy_units, behavior_info = io_utils.get_session_data_from_datacube(
-            session_id, lazy=lazy, low_memory=True
+            session_id, lazy=lazy, 
+            scan_nwb_kwargs=dict(low_memory=True),
+            get_df_kwargs=dict(parallel=not params.use_process_pool),
         )
         print("getting units table with lazynwb")
         if lazy:
