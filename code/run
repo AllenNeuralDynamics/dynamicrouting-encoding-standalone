@@ -1,9 +1,10 @@
+
 #!/usr/bin/env bash
 set -ex
 
 # set env vars for running explicit multiprocessing:
 echo Setting env vars for Python-coordinated multiprocessing
-export RUST_BACKTRACE=full
+export RUST_BACKTRACE=1
 export POLARS_MAX_THREADS=1
 export TOKIO_WORKER_THREADS=1
 export OPENBLAS_NUM_THREADS=1
@@ -37,7 +38,3 @@ python -m pip install lazynwb -U -q
 python -m pip show lazynwb
 fi
 
-
-# --------------------------------------------------------------------------------
-# This is the master script for the capsule. When you click "Reproducible Run", the code in this file will execute.
-python -u run_capsule.py "$@"

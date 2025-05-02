@@ -681,7 +681,7 @@ def run_encoding(
 
     else:
         future_to_session: dict[cf.Future, str] = {}
-        lock = multiprocessing.Manager().Lock()  # or None
+        lock =  None # multiprocessing.Manager().Lock()  # or None
         with cf.ProcessPoolExecutor(
             max_workers=params.max_workers,
             mp_context=multiprocessing.get_context("spawn"),
