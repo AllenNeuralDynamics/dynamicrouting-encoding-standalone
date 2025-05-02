@@ -1,19 +1,5 @@
 # stdlib imports --------------------------------------------------- #
 import os
-
-os.environ["RUST_BACKTRACE"] = "1"
-os.environ['POLARS_MAX_THREADS'] = '1'
-os.environ["TOKIO_WORKER_THREADS"] = "1"
-os.environ["OPENBLAS_NUM_THREADS"] = "1"
-os.environ["RAYON_NUM_THREADS"] = "1"
-os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["OMP_THREAD_LIMIT"] = "1"
-os.environ["MKL_NUM_THREADS"] = "1"
-os.environ["NUMEXPR_NUM_THREADS"] = "1"
-os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
-os.environ["MALLOC_CONF"] = "background_thread:false"
-
-
 import json
 import logging
 import pathlib
