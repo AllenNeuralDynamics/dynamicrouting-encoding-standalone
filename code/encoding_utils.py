@@ -642,8 +642,6 @@ def run_after_full_model(
         if params.test:
             logger.info("Test mode: exiting after first feature dropout")
             break
-    print('TEST exiting before linear shifts')
-    return
     print(f"{session_id} | running linear shift")
     shifts, blocks = get_linear_shifts(session_id=session_id, params=params)
     for shift in shifts:
