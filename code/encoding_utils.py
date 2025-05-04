@@ -316,7 +316,7 @@ def generate_fullmodel_data(session_id, params, lock: _thread.LockType | None = 
 
     print(f"{session_id} | acquiring lock to get units and behavior info")
     with lock:
-        lazy = False
+        lazy = True
         lazy_units, behavior_info = io_utils.get_session_data_from_datacube(
             session_id, lazy=lazy, 
             scan_nwb_kwargs=dict(low_memory=True),
@@ -660,6 +660,22 @@ def run_after_full_model(
             logger.info("Test mode: exiting after first shift")
             break
 
+def schedule_more_jobs(
+    future: cf.Future,
+    session_id: str,
+    params: Params,
+    executor: cf.ProcessPoolExecutor,
+    lock: _thread.LockType | None = None,
+) -> None:
+    #! don't do closure on session_id/params
+    _ = future  # future must be first arg, but isn't needed
+    print(f'{session_id} | submitting more jobs')
+    f = executor.submit(
+        run_after_full_model,
+        session_id=session_id,
+        params=params,
+        #lock=lock,
+    )
 
 def run_encoding(
     session_ids: str | Iterable[str],
@@ -691,29 +707,9 @@ def run_encoding(
                     helper_fullmodel,
                     session_id=session_id,
                     params=params,
-                    lock=lock,
+                    #lock=lock,
                 )
 
-                def schedule_more_jobs(
-                    future: cf.Future,
-                    session_id: str,
-                    params: Params,
-                    executor: cf.ProcessPoolExecutor,
-                    lock: _thread.LockType | None = None,
-                ) -> None:
-                    #! don't do closure on session_id/params
-                    _ = future  # future must be first arg, but isn't needed
-                    future = executor.submit(
-                        run_after_full_model,
-                        session_id=session_id,
-                        params=params,
-                        lock=lock,
-                    )
-                    for future in cf.as_completed([future]):
-                        try:
-                            _ = future.result()
-                        except Exception:
-                            logger.exception(f"{session_id} | Failed:")
 
                 future.add_done_callback(
                     functools.partial(
