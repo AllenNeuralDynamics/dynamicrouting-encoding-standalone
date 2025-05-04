@@ -97,7 +97,7 @@ class Params(pydantic_settings.BaseSettings, extra="allow"):
     update_packages_from_source: bool = pydantic.Field(False, exclude=True)
     override_params_json: str | None = pydantic.Field("{}", exclude=True)
     use_process_pool: bool = pydantic.Field(True, exclude=True, repr=True)
-    max_workers: int | None = pydantic.Field(None, exclude=True, repr=True)
+    max_workers: int | None = pydantic.Field(os.environ['CO_CPUS'], exclude=True, repr=True)
     """For process pool"""
 
     # Run parameters that define a unique run (ie will be checked for 'skip_existing')
