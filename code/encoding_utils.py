@@ -207,7 +207,7 @@ class Params(pydantic_settings.BaseSettings, extra="allow"):
     @property
     def pkl_data_dir(self) -> upath.UPath:
         """Path to pkl data subfolder within results dir on S3"""
-        return self.results_dir / f"fullmodel_pkl_files/{self.results_folder_name}"
+        return self.results_dir.parent / f"fullmodel_pkl_files/{self.results_folder_name}"
 
     @property
     def json_path(self) -> upath.UPath:
