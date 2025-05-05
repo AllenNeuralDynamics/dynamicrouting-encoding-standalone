@@ -423,6 +423,9 @@ def get_features_to_drop(session_id: str, params: Params) -> list[str]:
         run_params["kernels"][key]["function_call"]
         for key in run_params["input_variables"]
     ]
+    if "context_templeton" in features_to_drop:
+        features_to_drop.remove("context_templeton")
+        features_to_drop.append("context")
     return sorted(set(features_to_drop))
 
 
