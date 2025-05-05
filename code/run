@@ -2,20 +2,34 @@
 #!/usr/bin/env bash
 set -ex
 
-# set env vars for running explicit multiprocessing:
-echo Setting env vars for Python-coordinated multiprocessing
-export RUST_BACKTRACE=1
-export POLARS_MAX_THREADS=1
-export TOKIO_WORKER_THREADS=1
-export OPENBLAS_NUM_THREADS=1
-export RAYON_NUM_THREADS=1
-export OMP_NUM_THREADS=1
-export OMP_THREAD_LIMIT=1
-export MKL_NUM_THREADS=1
-export NUMEXPR_NUM_THREADS=1
-export VECLIB_MAXIMUM_THREADS=1
-export MALLOC_CONF=background_thread:false
+if [[ "$@" =~ "--use_process_pool=1" || "$@" =~ "--use_process_pool=True" || "$@" =~ "--use_process_pool=true" ]]; then
 
+    echo Setting env vars for Python-coordinated multiprocessing
+    export RUST_BACKTRACE=1
+    export POLARS_MAX_THREADS=1
+    export TOKIO_WORKER_THREADS=1
+    export OPENBLAS_NUM_THREADS=1
+    export RAYON_NUM_THREADS=1
+    export OMP_NUM_THREADS=1
+    export OMP_THREAD_LIMIT=1
+    export MKL_NUM_THREADS=1
+    export NUMEXPR_NUM_THREADS=1
+    export VECLIB_MAXIMUM_THREADS=1
+    export MALLOC_CONF=background_thread:false
+
+else
+    echo Setting env vars for multithreaded libraries. Setting threadpool size to value from CO_CPUS: $CO_CPUS
+    export RUST_BACKTRACE=$CO_CPUS
+    export POLARS_MAX_THREADS=$CO_CPUS
+    export TOKIO_WORKER_THREADS=$CO_CPUS
+    export OPENBLAS_NUM_THREADS=$CO_CPUS
+    export RAYON_NUM_THREADS=$CO_CPUS
+    export OMP_NUM_THREADS=$CO_CPUS
+    export OMP_THREAD_LIMIT=$CO_CPUS
+    export MKL_NUM_THREADS=$CO_CPUS
+    export NUMEXPR_NUM_THREADS=$CO_CPUS
+    export VECLIB_MAXIMUM_THREADS=$CO_CPUS
+fi
 
 # Use the following to always install the latest version of a package from source:
 # --------------------------------------------------------------------------------
