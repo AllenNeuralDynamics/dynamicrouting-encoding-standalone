@@ -614,11 +614,11 @@ def save_results(
             schema_overrides={
                 "shift_index": pl.Int32,
                 "dropped_variable": pl.String,
-                "weights": pl.List(pl.Float64),                {
+                "weights": pl.List(pl.Float64),
                 "model_label": pl.Enum(['fullmodel', 'drop', 'shift']),
                 "project": pl.Enum(['DynamicRouting', 'Templeton']),
                 "dropped_variable": pl.Enum(['running', 'miss', 'sound1', 'context', 'vis2', 'licks', 'session_time', 'correct_reject', 'nose', 'stimulus', 'jaw', 'false_alarm', 'ears', 'choice', 'whisker_pad', 'sound2', 'facial_features', 'pupil', 'vis1', 'hit']),
-            )
+            }
         ).write_parquet(
             parquet_path.as_posix(),
             compression_level=18,
