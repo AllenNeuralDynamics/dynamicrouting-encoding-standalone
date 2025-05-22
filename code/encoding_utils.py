@@ -121,6 +121,8 @@ class Params(pydantic_settings.BaseSettings, extra="allow"):
     )
     trial_start_time: float = -2
     trial_stop_time: float = 3
+    quiescent_start_time: float = -1.5
+    quiescent_stop_time: float = 0
     intercept: bool = True
     """Whether to include an intercept in the design matrix"""
     method: Literal[
