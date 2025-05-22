@@ -28,7 +28,7 @@
 				},
 				{
 					"name": "git+https://github.com/AllenInstitute/dynamic_routing_analysis#egg=dynamic-routing-analysis",
-					"version": "e64e10038f0b17103da5094e18100c8e48e7d460"
+					"version": "8078a3dae906081589eefa9cdf516c2f4b0bef23"
 				},
 				{
 					"name": "lazynwb",
