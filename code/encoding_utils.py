@@ -645,6 +645,12 @@ def run_after_full_model(
             logger.info("Test mode: exiting after first feature dropout")
             break
     print(f"{session_id} | running linear shift")
+
+    good_behavior_sessions = datacube_utils.get_prod_trials()["session_id"].unique()
+
+    if session_id not in good_behavior_sessions:
+        return
+
     shifts, blocks = get_linear_shifts(session_id=session_id, params=params)
     for shift in shifts:
         print(f"{session_id} | {shift=}")
