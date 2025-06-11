@@ -647,8 +647,9 @@ def run_after_full_model(
     print(f"{session_id} | running linear shift")
 
     good_behavior_sessions = datacube_utils.get_prod_trials()["session_id"].unique()
+    templeton_sessions = datacube_utils.get_session_table().filter("is_templeton")["session_id"].unique()
 
-    if session_id not in good_behavior_sessions:
+    if (session_id not in good_behavior_sessions) and (session_id not in templeton_sessions):
         return
 
     shifts, blocks = get_linear_shifts(session_id=session_id, params=params)
