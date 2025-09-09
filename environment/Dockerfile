@@ -1,4 +1,4 @@
-# hash:sha256:5fab18f33ecd985b3d9fc43803713b87e2a22e879fbf7b47753c062db1c0ba97
+# hash:sha256:e0e2ec8ca969fb0a6f93dbb380658ee1752d3ed56a1f09edd5db6e186d39b95a
 ARG REGISTRY_HOST
 FROM $REGISTRY_HOST/codeocean/c1-vscode:4.20.0-pylint2023.10.1-copilot1.143.601
 
@@ -16,4 +16,4 @@ RUN --mount=type=secret,id=git-access-token \
     pip3 install -U --no-cache-dir \
     aind-data-schema-models==0.5.7 \
     lazynwb==0.2.40 \
-    -e git+https://github.com/AllenInstitute/dynamic_routing_analysis@6b57edace6ed0653afe40dd6acc8c9ca31e55993#egg=dynamic-routing-analysis
+    -e git+https://github.com/AllenInstitute/dynamic_routing_analysis@88e51e0557de400333500aedec2dbda502626680#egg=dynamic-routing-analysis
