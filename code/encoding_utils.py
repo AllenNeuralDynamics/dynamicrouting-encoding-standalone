@@ -181,7 +181,10 @@ class Params(pydantic_settings.BaseSettings, extra="allow"):
 
     smooth_spikes_half_gaussian: bool = False
     half_gaussian_std_dev: float = 0.05
+    run_dropout: bool = True
+    run_linear_shift: bool = True
     features_to_drop: list[str] | None = pydantic.Field(default=None, exclude=True)
+
     """For modifying via app panel, but needs populating otherwise"""
 
     linear_shift_variables: list[str] = pydantic.Field(
@@ -632,6 +635,10 @@ def save_results(
 def run_after_full_model(
     session_id: str, params: Params, lock: _thread.LockType | None = None
 ) -> None:
+    if not params.run_dropout:
+        print(f"{session_id} | skipping dropout")
+        return 
+
     print(f"{session_id} | running drop features after full model")
     for feature_to_drop in get_features_to_drop(session_id=session_id, params=params):
         print(f"{session_id} | {feature_to_drop=}")
@@ -644,6 +651,11 @@ def run_after_full_model(
         if params.test:
             logger.info("Test mode: exiting after first feature dropout")
             break
+
+    if not params.run_linear_shift:
+        print(f"{session_id} | skipping linear shift")
+        return
+
     print(f"{session_id} | running linear shift")
 
     good_behavior_sessions = datacube_utils.get_passing_session_ids(include_templeton=True).to_list()
