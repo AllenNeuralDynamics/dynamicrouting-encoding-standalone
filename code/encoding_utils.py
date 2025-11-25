@@ -635,48 +635,46 @@ def save_results(
 def run_after_full_model(
     session_id: str, params: Params, lock: _thread.LockType | None = None
 ) -> None:
-    if not params.run_dropout:
+    if params.run_dropout:
+        print(f"{session_id} | running drop features after full model")
+        for feature_to_drop in get_features_to_drop(session_id=session_id, params=params):
+            print(f"{session_id} | {feature_to_drop=}")
+            helper_dropout(
+                session_id=session_id,
+                params=params,
+                feature_to_drop=feature_to_drop,
+                lock=lock,
+            )
+            if params.test:
+                logger.info("Test mode: exiting after first feature dropout")
+                break
+    else: 
         print(f"{session_id} | skipping dropout")
-        return 
 
-    print(f"{session_id} | running drop features after full model")
-    for feature_to_drop in get_features_to_drop(session_id=session_id, params=params):
-        print(f"{session_id} | {feature_to_drop=}")
-        helper_dropout(
-            session_id=session_id,
-            params=params,
-            feature_to_drop=feature_to_drop,
-            lock=lock,
-        )
-        if params.test:
-            logger.info("Test mode: exiting after first feature dropout")
-            break
+    if params.run_linear_shift:
+        print(f"{session_id} | running linear shift")
 
-    if not params.run_linear_shift:
+        good_behavior_sessions = datacube_utils.get_passing_session_ids(include_templeton=True).to_list()
+
+        if session_id not in good_behavior_sessions:
+            return
+
+        shifts, blocks = get_linear_shifts(session_id=session_id, params=params)
+        for shift in shifts:
+            print(f"{session_id} | {shift=}")
+            helper_linear_shift(
+                session_id=session_id,
+                params=params,
+                shift=shift,
+                blocks=blocks,
+                shift_columns=get_shift_columns(session_id=session_id, params=params),
+                lock=lock,
+            )
+            if params.test:
+                logger.info("Test mode: exiting after first shift")
+                break
+    else: 
         print(f"{session_id} | skipping linear shift")
-        return
-
-    print(f"{session_id} | running linear shift")
-
-    good_behavior_sessions = datacube_utils.get_passing_session_ids(include_templeton=True).to_list()
-
-    if session_id not in good_behavior_sessions:
-        return
-
-    shifts, blocks = get_linear_shifts(session_id=session_id, params=params)
-    for shift in shifts:
-        print(f"{session_id} | {shift=}")
-        helper_linear_shift(
-            session_id=session_id,
-            params=params,
-            shift=shift,
-            blocks=blocks,
-            shift_columns=get_shift_columns(session_id=session_id, params=params),
-            lock=lock,
-        )
-        if params.test:
-            logger.info("Test mode: exiting after first shift")
-            break
 
 def schedule_more_jobs(
     future: cf.Future,
