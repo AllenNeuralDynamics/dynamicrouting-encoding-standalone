@@ -2,6 +2,10 @@
 	"version": 1,
 	"attached_datasets": [
 		{
+			"id": "41004e0d-35ed-4a0b-8f96-05d20b791e5b",
+			"mount": "context_belief"
+		},
+		{
 			"id": "bfaffa07-a179-4f02-9724-4e51451d8ba6",
 			"mount": "dynamicrouting_datacube_v0.0.272"
 		}
