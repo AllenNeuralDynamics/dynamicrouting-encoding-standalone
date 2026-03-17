@@ -106,6 +106,8 @@ class Params(pydantic_settings.BaseSettings, extra="allow"):
     input_offsets: bool = True
     input_window_lengths: dict[str, float] = pydantic.Field(default_factory=dict)
 
+    use_context_belief: bool = False
+
     # unit inclusion parameters ---------------------------------------- #
     presence_ratio: float | None = 0.7
     decoder_labels_to_exclude: list[str] = pydantic.Field(
