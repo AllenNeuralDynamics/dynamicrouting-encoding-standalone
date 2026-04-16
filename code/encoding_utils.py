@@ -351,6 +351,10 @@ def generate_fullmodel_data(session_id, params, lock: _thread.LockType | None = 
     if len(units_table) == 0:
         raise ValueError("No units meet the inclusion criteria — units_table is empty.")
     run_params = params.model_dump()
+    if params.input_variables:
+        run_params |= {
+          "input_variables": params.input_variables 
+        }
     run_params |= {
         "fullmodel_fitted": False,
         "model_label": "fullmodel",
@@ -410,6 +414,7 @@ def helper_fullmodel(
         "fullmodel_fitted": False,
         "model_label": model_label,
     }
+
     fit = glm_utils.optimize_model(
         fit=data["fit"], design_mat=data["design_matrix"], run_params=run_params
     )
