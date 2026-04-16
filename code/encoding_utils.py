@@ -197,7 +197,7 @@ class Params(pydantic_settings.BaseSettings, extra="allow"):
     # Params that will be updated many times during processing (ie for each model) -------------- #
     # project: str | None = pydantic.Field(default=None, exclude=True)
     # drop_variables: list[str] | None = pydantic.Field(default=None, exclude=True)
-    # input_variables: list[str] | None = pydantic.Field(default=None, exclude=True)
+    input_variables: list[str] | None = pydantic.Field(default=None, exclude=True)
     # fullmodel_fitted: bool | None = pydantic.Field(default=None, exclude=True)
     # model_label: str | None  = pydantic.Field(default=None, exclude=True)
 
