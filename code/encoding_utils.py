@@ -137,6 +137,7 @@ class Params(pydantic_settings.BaseSettings, extra="allow"):
     optimize_on: float = 0.3
     n_outer_folds: int = 5
     n_inner_folds: int = 5
+    leave_blocks_out: bool = False
     optimize_penalty_by_cell: bool = False
     optimize_penalty_by_area: bool = False
     optimize_penalty_by_firing_rate: bool = False
