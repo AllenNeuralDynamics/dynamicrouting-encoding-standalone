@@ -5,13 +5,15 @@ import logging
 import pathlib
 import time
 
-import encoding_utils
-import matplotlib
-
 # 3rd-party imports necessary for processing ----------------------- #
+import dr_datacube
+import matplotlib
 import pandas as pd
 import upath
 import utils
+
+# local modules ----------------------------------------------------- # 
+import encoding_utils
 
 # logging configuration -------------------------------------------- #
 # use `logger.info(msg)` instead of `print(msg)` so we get timestamps and origin of log messages
@@ -28,6 +30,7 @@ logging.getLogger("matplotlib.font_manager").setLevel(
     logging.ERROR
 )  # suppress matplotlib font warnings on linux
 
+dr_datacube.config.use_cache = False # use attached asset if in CO
 
 def main():
     t0 = time.time()
@@ -51,7 +54,7 @@ def main():
 
     # if session_id is passed as a command line argument, we will only process that session,
     # otherwise we process all session IDs that match filtering criteria:
-    session_table = pd.read_parquet(utils.get_datacube_dir() / "session_table.parquet")
+    session_table = pd.read_parquet(dr_datacube.asset_dir / "session_table.parquet")
     session_table["issues"] = session_table["issues"].astype(str)
     session_ids: list[str] = session_table.query(params.session_table_query)[
         "session_id"
@@ -87,7 +90,7 @@ def main():
         session_ids = [params.single_session_id_to_use]
     
     # filter requested sessions based on NWBs available:
-    nwb_session_ids = set(p.stem for p in utils.get_nwb_paths())
+    nwb_session_ids = set(p.stem for p in asset_dir.list_nwb_sources())
     if not nwb_session_ids:
         logger.warning("No NWBs found in datacube: exiting")
         exit()

@@ -14,6 +14,7 @@ import pathlib
 import pickle
 from typing import Annotated, Any, Iterable, Literal
 
+import dr_datacube
 import lazynwb
 import polars as pl
 import pydantic
@@ -101,7 +102,7 @@ class Params(pydantic_settings.BaseSettings, extra="allow"):
     """For process pool"""
 
     # Run parameters that define a unique run (ie will be checked for 'skip_existing')
-    datacube_version: str = datacube_utils.get_datacube_version()
+    datacube_version: str = dr_datacube.config.version
     time_of_interest: str = "full_trial"
     input_offsets: bool = True
     input_window_lengths: dict[str, float] = pydantic.Field(default_factory=dict)
@@ -662,7 +663,10 @@ def run_after_full_model(
     if params.run_linear_shift:
         print(f"{session_id} | running linear shift")
 
-        good_behavior_sessions = datacube_utils.get_passing_session_ids(include_templeton=True).to_list()
+        good_behavior_sessions = dr_datacube.get_session_ids_from_github(
+            session_type=["brainwide", "templeton"],
+            with_behavior_filter=True,
+        )
 
         if session_id not in good_behavior_sessions:
             return
