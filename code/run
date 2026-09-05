@@ -52,5 +52,5 @@ python -m pip install lazynwb -U -q
 python -m pip show lazynwb
 fi
 
-python -u run_capsule.py "$@"
+python -u dynamic_routing_analysis/scripts/run_encoding.py "$@"
 
